@@ -6,7 +6,10 @@
   const root = document.documentElement;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const mobileMQ = window.matchMedia('(max-width: 760px)');
+  // Same breakpoints as the CSS "Touch layouts" block: phones + tablets use the
+  // home-screen layout (apps as sheets), everything else gets the real desktop.
+  const COMPACT_Q = '(max-width: 760px), (pointer: coarse) and (max-width: 1180px), (pointer: coarse) and (max-height: 520px)';
+  const mobileMQ = window.matchMedia(COMPACT_Q);
   const isMobile = () => mobileMQ.matches;
   const isQuick = () => root.classList.contains('quick');
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -463,6 +466,23 @@
   }
   bootEl.addEventListener('click', () => { if (!bootEl.classList.contains('is-done')) { bootEl.classList.add('is-done'); startDesktop(); } });
   runBoot(false);
+
+  // Switching layout (rotate a tablet, resize a browser window across a breakpoint)
+  mobileMQ.addEventListener('change', () => {
+    closeMenus(); closeCtx();
+    if (!isMobile() && !isQuick()) {
+      wins.forEach(w => { if (!w.hidden && !w.dataset.placed) place(w); });
+      if (!wins.some(w => !w.hidden)) open('about', { quiet: true, noFocus: true });
+    }
+    document.body.style.overflow = '';
+    syncMobileLock();
+    tick();
+  });
+
+  // Tablet: tap the dimmed area around an app sheet to close it
+  $('[data-windows]').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget && isMobile() && !isQuick()) { const w = topmostOpen(); if (w) hideWin(w); }
+  });
 
   window.addEventListener('resize', () => {
     if (isMobile() || isQuick()) return;

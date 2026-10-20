@@ -111,7 +111,7 @@ $termData = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=61">
+  <link rel="stylesheet" href="assets/css/style.css?v=71">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -626,6 +626,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=60" defer></script>
+<script src="assets/js/main.js?v=70" defer></script>
 </body>
 </html>
