@@ -97,7 +97,7 @@ if ($wantsJson) {
 
 // Email notification + auto-reply via PHPMailer (skipped until SMTP is configured)
 require __DIR__ . '/includes/mailer.php';
-$scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
 $siteUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
 send_inquiry_mails(
     ['date' => date('d M Y, H:i'), 'type' => $type, 'name' => $name, 'email' => $email, 'company' => $company, 'message' => $message],

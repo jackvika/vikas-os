@@ -6,3 +6,5 @@ data/
 .env
 .env.*
 README.md
+Dockerfile
+render.yaml
