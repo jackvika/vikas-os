@@ -81,7 +81,8 @@
   const byApp = Object.fromEntries(wins.map(w => [w.dataset.app, w]));
   const dockBtns = Object.fromEntries($$('[data-dock]').map(b => [b.dataset.dock, b]));
   let zTop = 100, cascade = 0;
-  const MB = () => parseFloat(getComputedStyle(root).getPropertyValue('--mb-h')) || 34;
+  // Real menu-bar height (includes any notch / status-bar safe area)
+  const MB = () => (document.querySelector('[data-menubar]') || {}).offsetHeight || 34;
 
   const place = (w) => {
     const [x, y, ww, hh] = (w.dataset.geo || '10,10,600,500').split(',').map(Number);

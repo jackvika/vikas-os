@@ -88,7 +88,7 @@ $termData = [
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= e($p['name']) ?> — <?= e($p['title']) ?> | Vikas OS</title>
   <meta name="description" content="<?= e($p['name']) ?> is a Digital Marketing Specialist &amp; SEO Expert with 3+ years in B2B and export marketing: SEO, Google Ads, Meta Ads, IndiaMART, Alibaba.com and lead generation. 1-month notice period.">
   <meta name="author" content="<?= e($p['name']) ?>">
@@ -111,7 +111,7 @@ $termData = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=71">
+  <link rel="stylesheet" href="assets/css/style.css?v=72">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -626,6 +626,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=70" defer></script>
+<script src="assets/js/main.js?v=72" defer></script>
 </body>
 </html>
