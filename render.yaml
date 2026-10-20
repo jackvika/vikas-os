@@ -7,7 +7,7 @@ services:
     plan: free
     region: singapore
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /assets/img/favicon.svg   # static file: no PHP session per health check
     envVars:
       # PHPMailer SMTP (Gmail). Secret values are entered in the Render dashboard.
       - key: SMTP_HOST
@@ -24,3 +24,5 @@ services:
         value: Vikas Rambaul Giri
       - key: MAIL_TO
         value: vikasr.giri@outlook.com
+      - key: DIAG_TOKEN         # optional: enables /mail-test.php?token=… (remove when done)
+        sync: false

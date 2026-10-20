@@ -64,7 +64,7 @@ function make_mailer(): PHPMailer
     $m->Username   = $c['username'];
     $m->Password   = $c['password'];
     $m->SMTPSecure = $c['secure'] === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-    $m->Timeout    = 15;
+    $m->Timeout    = 10;  // fail fast if the host blocks SMTP
     $m->CharSet    = PHPMailer::CHARSET_UTF8;
     $m->Encoding   = PHPMailer::ENCODING_QUOTED_PRINTABLE;
     $m->XMailer    = ' ';                                   // don't advertise PHPMailer
@@ -200,21 +200,61 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
 }
 
 /**
+ * Open one authenticated SMTP connection. Tries the configured port first, then the
+ * other standard port (587 STARTTLS <-> 465 SSL). Returns null + a clear reason on failure.
+ */
+function smtp_open(?string &$error = null): ?PHPMailer
+{
+    $c = mail_config();
+    $attempts = [[(int)$c['port'], $c['secure']]];
+    if ((int)$c['port'] === 587) { $attempts[] = [465, 'ssl']; }
+    elseif ((int)$c['port'] === 465) { $attempts[] = [587, 'tls']; }
+
+    $reasons = [];
+    foreach ($attempts as [$port, $secure]) {
+        $m = make_mailer();
+        $m->Port = $port;
+        $m->SMTPSecure = $secure === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+        $m->SMTPKeepAlive = true;
+        $t = microtime(true);
+        try {
+            if ($m->smtpConnect()) { return $m; }
+            $reasons[] = "{$c['host']}:{$port} refused";
+        } catch (Exception $e) {
+            $msg = $e->getMessage();
+            $secs = round(microtime(true) - $t, 1);
+            if (stripos($msg, 'authenticate') !== false) {
+                $error = "SMTP login failed for {$c['username']} (wrong SMTP_USER / SMTP_PASS, or the Gmail app password was revoked).";
+                return null;
+            }
+            $reasons[] = "{$c['host']}:{$port} unreachable after {$secs}s ({$msg})";
+        }
+    }
+    $error = 'Could not connect to SMTP: ' . implode('; ', $reasons)
+        . '. If this runs on a host that blocks outgoing SMTP (e.g. Render free plan), use an SMTP relay that supports port 2525 or a host that allows SMTP.';
+    return null;
+}
+
+/**
  * Sends the notification to the site owner and (optionally) an auto-reply to the sender.
  * Returns ['notified' => bool, 'replied' => bool].
  */
 function send_inquiry_mails(array $lead, array $profile, string $siteUrl): array
 {
     $result = ['notified' => false, 'replied' => false];
-    if (!mail_is_configured()) { return $result; }
-    $c = mail_config();
+    if (!mail_is_configured()) {
+        mail_log('Not sent: SMTP is not configured. Set SMTP_USER and SMTP_PASS (Render → Environment).');
+        return $result;
+    }
     $messages = build_inquiry_messages($lead, $profile, $siteUrl);
     $key = ['notify' => 'notified', 'reply' => 'replied'];
 
-    // SMTP via PHPMailer, one connection for both messages
-
-    $m = make_mailer();
-    $m->SMTPKeepAlive = true;
+    // SMTP via PHPMailer: connect ONCE (with port fallback), then send both messages
+    $m = smtp_open($error);
+    if (!$m) {
+        mail_log('Not sent: ' . $error);
+        return $result;
+    }
     foreach ($messages as $k => $msg) {
         try {
             $m->clearAllRecipients();

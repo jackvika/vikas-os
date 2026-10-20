@@ -83,7 +83,12 @@ session_write_close();
 // Answer the visitor right away, then send the emails in the background
 if ($wantsJson) {
     ignore_user_abort(true);
-    set_time_limit(60);
+    set_time_limit(90);
+    // No compression/buffering, otherwise the visitor waits for SMTP to finish
+    if (function_exists('apache_setenv')) { @apache_setenv('no-gzip', '1'); }
+    @ini_set('zlib.output_compression', '0');
+    header('Content-Encoding: identity');
+    header('X-Accel-Buffering: no');
     $out = json_encode(['ok' => true]);
     http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
