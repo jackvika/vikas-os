@@ -31,7 +31,58 @@ function mail_config(): array
 function mail_is_configured(): bool
 {
     $c = mail_config();
-    return $c['username'] !== '' && $c['password'] !== '' && $c['host'] !== '';
+    return relay_configured() || ($c['username'] !== '' && $c['password'] !== '' && $c['host'] !== '');
+}
+
+/** Gmail relay (Google Apps Script web app) is used when URL + secret are set. */
+function relay_configured(): bool
+{
+    $c = mail_config();
+    return ($c['relay_url'] ?? '') !== '' && ($c['relay_secret'] ?? '') !== '';
+}
+
+/**
+ * Send one message through the Gmail relay over HTTPS (port 443, never blocked).
+ * Apps Script answers a POST with a 302 to googleusercontent.com, which is fetched with GET.
+ */
+function relay_send(array $msg, ?string &$error = null): bool
+{
+    $c = mail_config();
+    $payload = json_encode([
+        'secret'   => $c['relay_secret'],
+        'to'       => $msg['to'][0],
+        'replyTo'  => $msg['replyTo'][0],
+        'subject'  => $msg['subject'],
+        'html'     => $msg['html'],
+        'text'     => $msg['text'],
+        'fromName' => $c['from_name'],
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init($c['relay_url']);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,   // 302 → GET the result (curl's default for 302)
+        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($body === false) { $error = "Gmail relay unreachable: {$curlErr}"; return false; }
+    $json = json_decode((string)$body, true);
+    if ($status === 200 && is_array($json) && !empty($json['ok'])) { return true; }
+
+    $reason = is_array($json) ? (string)($json['error'] ?? 'unknown error') : 'unexpected response (HTTP ' . $status . ')';
+    if ($reason === 'unauthorized') { $reason = 'unauthorized: GMAIL_RELAY_SECRET does not match RELAY_SECRET in the Apps Script'; }
+    elseif (!is_array($json) && stripos((string)$body, '<html') !== false) { $reason .= '. Is the web app deployed with "Who has access: Anyone"?'; }
+    $error = 'Gmail relay failed: ' . $reason;
+    return false;
 }
 
 function mail_log(string $msg): void
@@ -243,11 +294,20 @@ function send_inquiry_mails(array $lead, array $profile, string $siteUrl): array
 {
     $result = ['notified' => false, 'replied' => false];
     if (!mail_is_configured()) {
-        mail_log('Not sent: SMTP is not configured. Set SMTP_USER and SMTP_PASS (Render → Environment).');
+        mail_log('Not sent: email is not configured. Set GMAIL_RELAY_URL + GMAIL_RELAY_SECRET, or SMTP_USER + SMTP_PASS (Render → Environment).');
         return $result;
     }
     $messages = build_inquiry_messages($lead, $profile, $siteUrl);
     $key = ['notify' => 'notified', 'reply' => 'replied'];
+
+    // Hosts that block SMTP (Render free): send through the Gmail relay over HTTPS
+    if (relay_configured()) {
+        foreach ($messages as $k => $msg) {
+            $result[$key[$k]] = relay_send($msg, $err);
+            if (!$result[$key[$k]]) { mail_log(($k === 'notify' ? 'Notify' : 'Auto-reply') . ' not sent: ' . $err); }
+        }
+        return $result;
+    }
 
     // SMTP via PHPMailer: connect ONCE (with port fallback), then send both messages
     $m = smtp_open($error);

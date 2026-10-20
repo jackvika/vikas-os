@@ -8,3 +8,4 @@ data/
 README.md
 Dockerfile
 render.yaml
+deploy/

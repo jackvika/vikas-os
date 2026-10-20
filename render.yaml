@@ -9,7 +9,13 @@ services:
     autoDeploy: true
     healthCheckPath: /assets/img/favicon.svg   # static file: no PHP session per health check
     envVars:
-      # PHPMailer SMTP (Gmail). Secret values are entered in the Render dashboard.
+      # Gmail relay (Google Apps Script, HTTPS). Render free blocks SMTP, so this is used in production.
+      # Setup: deploy/gmail-relay.gs
+      - key: GMAIL_RELAY_URL     # Apps Script web app URL (…/exec)
+        sync: false
+      - key: GMAIL_RELAY_SECRET  # same value as RELAY_SECRET in the Apps Script
+        sync: false
+      # PHPMailer SMTP (Gmail), used only when the relay is not set and the host allows SMTP.
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT

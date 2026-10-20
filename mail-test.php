@@ -34,6 +34,8 @@ echo "Vikas OS: mail diagnostics (" . date('d M Y H:i:s T') . ")\n";
 echo str_repeat('=', 60) . "\n\n";
 
 echo "CONFIG\n";
+echo "  Gmail relay   : " . (relay_configured() ? 'ON (' . preg_replace('#/s/([^/]{6})[^/]*#', '/s/$1…', $c['relay_url']) . ', secret set)' : 'off (set GMAIL_RELAY_URL + GMAIL_RELAY_SECRET)') . "\n";
+echo "  Transport     : " . (relay_configured() ? 'Gmail relay over HTTPS' : 'PHPMailer SMTP') . "\n";
 echo "  SMTP host     : {$c['host']}:{$c['port']} ({$c['secure']})\n";
 echo "  SMTP_USER     : " . $mask($c['username']) . "\n";
 echo "  SMTP_PASS     : " . ($c['password'] === '' ? '(not set)' : 'set (' . strlen(str_replace(' ', '', $c['password'])) . ' chars)') . "\n";
@@ -47,6 +49,7 @@ echo "  {$c['host']} -> " . ($ip === $c['host'] ? 'FAILED to resolve' : $ip) . "
 echo "OUTBOUND CONNECTIVITY (5s timeout each)\n";
 $targets = [
     ['api.github.com', 443, 'HTTPS control (should be OPEN)'],
+    ['script.google.com', 443, 'Gmail relay (Apps Script)'],
     [$c['host'], 587, 'SMTP STARTTLS'],
     [$c['host'], 465, 'SMTP SSL'],
     ['smtp-relay.brevo.com', 2525, 'SMTP relay alt port 2525'],
@@ -65,8 +68,10 @@ foreach ($targets as [$h, $port, $label]) {
 echo "\n";
 
 echo "VERDICT\n";
-if (!mail_is_configured()) {
-    echo "  ✗ SMTP credentials are missing. Add SMTP_USER and SMTP_PASS in Render → Environment, then redeploy.\n";
+if (relay_configured()) {
+    echo "  ✓ Using the Gmail relay over HTTPS (SMTP ports are not needed).\n";
+} elseif (!mail_is_configured()) {
+    echo "  ✗ Email is not configured. Set GMAIL_RELAY_URL + GMAIL_RELAY_SECRET (or SMTP_USER + SMTP_PASS) in Render → Environment.\n";
 } elseif (!$smtpOpen) {
     echo "  ✗ This host blocks outgoing SMTP to {$c['host']} (ports 587/465).\n";
     echo "    PHPMailer cannot reach Gmail from here. Options: an SMTP relay on port 2525\n";
@@ -76,7 +81,18 @@ if (!mail_is_configured()) {
 }
 echo "\n";
 
-if (isset($_GET['send'])) {
+if (isset($_GET['send']) && relay_configured()) {
+    echo "TEST EMAIL (Gmail relay)\n";
+    $ok = relay_send([
+        'to'      => [$c['to_email'], $c['to_name']],
+        'replyTo' => [$c['to_email'], $c['to_name']],
+        'subject' => 'Vikas OS mail test (Gmail relay)',
+        'html'    => '<p>This is a test email from <b>mail-test.php</b> on ' . htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'server') . ' at ' . date('d M Y H:i:s') . '.</p><p>If you can read this, the Gmail relay works.</p>',
+        'text'    => 'This is a test email from mail-test.php at ' . date('d M Y H:i:s') . '. If you can read this, the Gmail relay works.',
+        'headers' => [],
+    ], $err);
+    echo $ok ? "  ✓ Sent to {$c['to_email']} (check inbox and spam)\n" : "  ✗ {$err}\n";
+} elseif (isset($_GET['send'])) {
     echo "TEST EMAIL\n";
     $m = smtp_open($err);
     if (!$m) {

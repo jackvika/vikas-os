@@ -3,7 +3,9 @@
  * SMTP settings for the contact form (PHPMailer).
  *
  * No secrets live in this file, so it is safe to commit.
- *  - In production (Render), set environment variables:
+ *  - In production on Render (free plan blocks SMTP), set:
+ *      GMAIL_RELAY_URL, GMAIL_RELAY_SECRET  (Google Apps Script relay over HTTPS)
+ *  - On hosts that allow SMTP, set instead:
  *      SMTP_HOST, SMTP_PORT, SMTP_SECURE (tls|ssl), SMTP_USER, SMTP_PASS,
  *      SMTP_FROM (optional), SMTP_FROM_NAME (optional), MAIL_TO (optional)
  *  - Locally (XAMPP), put your values in includes/mail-config.local.php
@@ -14,6 +16,12 @@
 $env = static fn(string $k, string $default = ''): string => (string)(getenv($k) !== false ? getenv($k) : ($_ENV[$k] ?? $_SERVER[$k] ?? $default));
 
 $config = [
+    // Gmail relay via Google Apps Script (HTTPS). Used instead of SMTP when both are set.
+    // See deploy/gmail-relay.gs for the script and setup steps.
+    'relay_url'    => $env('GMAIL_RELAY_URL'),
+    'relay_secret' => $env('GMAIL_RELAY_SECRET'),
+
+    // SMTP via PHPMailer (used locally, or on hosts that allow SMTP)
     'host'       => $env('SMTP_HOST', 'smtp.gmail.com'),
     'port'       => (int)$env('SMTP_PORT', '587'),
     'secure'     => $env('SMTP_SECURE', 'tls'),

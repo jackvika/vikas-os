@@ -24,7 +24,24 @@ return [
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jackvika/vikas-os)
 
 `render.yaml` creates a free Docker web service (PHP 8.2 + Apache, so `.htaccess`
-rules apply). The contact form sends email with PHPMailer over SMTP:
+rules apply).
+
+### Email on Render: Gmail relay (recommended)
+
+Render's free plan blocks outgoing SMTP, so production email goes through a tiny
+Google Apps Script that sends from your own Gmail over HTTPS (~100 emails/day free).
+Follow the steps at the top of [`deploy/gmail-relay.gs`](deploy/gmail-relay.gs), then set:
+
+| Variable | Value |
+|---|---|
+| `GMAIL_RELAY_URL` | the Apps Script web app URL (`…/exec`) |
+| `GMAIL_RELAY_SECRET` | the same value as `RELAY_SECRET` in the script |
+
+Check it at `/mail-test.php?token=<DIAG_TOKEN>&send=1` (set `DIAG_TOKEN` temporarily).
+
+### Email on hosts that allow SMTP
+
+Without the relay variables, the contact form uses PHPMailer over SMTP:
 
 | Variable | Value |
 |---|---|
