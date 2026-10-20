@@ -2,7 +2,7 @@
 
 A portfolio you can boot: a desktop-style site with draggable windows, a dock,
 Spotlight search, a working terminal, a job-description fit checker and a
-contact form that emails via Brevo (HTTPS API) or PHPMailer (SMTP).
+contact form that emails via PHPMailer (SMTP).
 
 **Stack:** PHP 8.2, vanilla JS/CSS, PHPMailer 7 (bundled, no Composer), Docker.
 
@@ -24,12 +24,15 @@ return [
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jackvika/vikas-os)
 
 `render.yaml` creates a free Docker web service (PHP 8.2 + Apache, so `.htaccess`
-rules apply). Free hosts block SMTP, so email uses the Brevo API:
+rules apply). The contact form sends email with PHPMailer over SMTP:
 
 | Variable | Value |
 |---|---|
-| `BREVO_API_KEY` | Brevo → SMTP & API → API Keys |
-| `MAIL_FROM` | a sender email verified in Brevo |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | `smtp.gmail.com` / `587` / `tls` (preset) |
+| `SMTP_USER` | Gmail address |
+| `SMTP_PASS` | 16-character Gmail app password |
 | `MAIL_TO` | where inquiries are delivered |
+
+Mail errors are written to the service logs (Render → Logs, lines starting with `[mail]`).
 
 Content lives in `includes/content.php`.

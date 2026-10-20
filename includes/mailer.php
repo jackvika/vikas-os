@@ -31,7 +31,7 @@ function mail_config(): array
 function mail_is_configured(): bool
 {
     $c = mail_config();
-    return $c['brevo_key'] !== '' || ($c['username'] !== '' && $c['password'] !== '' && $c['host'] !== '');
+    return $c['username'] !== '' && $c['password'] !== '' && $c['host'] !== '';
 }
 
 function mail_log(string $msg): void
@@ -39,6 +39,7 @@ function mail_log(string $msg): void
     $dir = dirname(__DIR__) . '/data';
     if (!is_dir($dir)) { mkdir($dir, 0750, true); }
     file_put_contents($dir . '/mail.log', '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL, FILE_APPEND | LOCK_EX);
+    error_log('[mail] ' . $msg); // also visible in hosting logs (e.g. Render → Logs)
 }
 
 /** True when the site runs on a real public domain (links to localhost look like spam). */
@@ -131,8 +132,7 @@ function signature(array $p): string
 }
 
 /**
- * Build both messages (notification + auto-reply) once, then deliver them via
- * the Brevo HTTPS API (works on free hosts that block SMTP) or PHPMailer SMTP.
+ * Build both messages (notification + auto-reply) once, then deliver them via PHPMailer SMTP.
  */
 function build_inquiry_messages(array $lead, array $profile, string $siteUrl): array
 {
@@ -199,37 +199,6 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
     return $messages;
 }
 
-/** Brevo transactional email API (HTTPS, port 443). */
-function brevo_send(array $msg): bool
-{
-    $c = mail_config();
-    $payload = [
-        'sender'      => ['email' => $c['from_email'] ?: $c['to_email'], 'name' => $c['from_name']],
-        'to'          => [['email' => $msg['to'][0], 'name' => $msg['to'][1]]],
-        'replyTo'     => ['email' => $msg['replyTo'][0], 'name' => $msg['replyTo'][1]],
-        'subject'     => $msg['subject'],
-        'htmlContent' => $msg['html'],
-        'textContent' => $msg['text'],
-    ];
-    if ($msg['headers']) { $payload['headers'] = $msg['headers']; }
-
-    $ctx = stream_context_create(['http' => [
-        'method'        => 'POST',
-        'header'        => "api-key: {$c['brevo_key']}\r\nContent-Type: application/json\r\nAccept: application/json\r\n",
-        'content'       => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        'timeout'       => 15,
-        'ignore_errors' => true,
-    ]]);
-    $body = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $ctx);
-    $status = 0;
-    foreach ($http_response_header ?? [] as $hdr) {
-        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $hdr, $mm)) { $status = (int)$mm[1]; }
-    }
-    if ($status >= 200 && $status < 300) { return true; }
-    mail_log('Brevo failed (' . $status . '): ' . mb_substr((string)$body, 0, 300));
-    return false;
-}
-
 /**
  * Sends the notification to the site owner and (optionally) an auto-reply to the sender.
  * Returns ['notified' => bool, 'replied' => bool].
@@ -242,13 +211,8 @@ function send_inquiry_mails(array $lead, array $profile, string $siteUrl): array
     $messages = build_inquiry_messages($lead, $profile, $siteUrl);
     $key = ['notify' => 'notified', 'reply' => 'replied'];
 
-    // Preferred on cloud hosts: Brevo HTTPS API
-    if ($c['brevo_key'] !== '') {
-        foreach ($messages as $k => $msg) { $result[$key[$k]] = brevo_send($msg); }
-        return $result;
-    }
+    // SMTP via PHPMailer, one connection for both messages
 
-    // Otherwise: SMTP via PHPMailer, one connection for both messages
     $m = make_mailer();
     $m->SMTPKeepAlive = true;
     foreach ($messages as $k => $msg) {

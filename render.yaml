@@ -9,9 +9,18 @@ services:
     autoDeploy: true
     healthCheckPath: /
     envVars:
-      - key: BREVO_API_KEY      # Brevo → SMTP & API → API Keys
+      # PHPMailer SMTP (Gmail). Secret values are entered in the Render dashboard.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: tls
+      - key: SMTP_USER          # Gmail address
         sync: false
-      - key: MAIL_FROM          # a sender email verified in Brevo
+      - key: SMTP_PASS          # 16-character Gmail app password
         sync: false
+      - key: SMTP_FROM_NAME
+        value: Vikas Rambaul Giri
       - key: MAIL_TO
         value: vikasr.giri@outlook.com
