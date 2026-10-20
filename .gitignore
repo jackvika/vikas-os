@@ -1,0 +1,14 @@
+# Secrets: never commit
+includes/mail-config.local.php
+.env
+.env.*
+
+# Runtime data (leads, mail logs)
+data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,8 @@
+.git
+.gitignore
+.dockerignore
+includes/mail-config.local.php
+data/
+.env
+.env.*
+README.md
