@@ -16,6 +16,7 @@ return [
     'notice'    => '1-month notice period',
     'resume'    => 'Vikas_Rambaul_Giri_Resume.pdf',
     'linkedin'  => '', // e.g. https://www.linkedin.com/in/your-handle
+    'booking_url' => '', // Optional: Calendly or Google Calendar appointment link (shown inside the "Book a Call" app)
 
     'summary' => 'Digital Marketing Specialist & SEO Expert with 3+ years in B2B and export marketing. I rank websites, run Google & Meta campaigns, and turn IndiaMART, Alibaba.com and TradeIndia into steady pipelines of qualified buyers — and I write the code for the pages that convert them.',
 

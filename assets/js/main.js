@@ -602,6 +602,121 @@
     }));
   }
 
+  /* ---------- Book a Call ---------- */
+  const callForm = $('[data-callform]');
+  if (callForm) {
+    const IST = 330; // minutes ahead of UTC
+    const SLOTS = [[10, 0], [11, 0], [12, 0], [14, 30], [15, 30], [16, 30], [17, 30]]; // IST
+    const LEAD_MS = 2 * 3600 * 1000; // need at least 2 hours' notice
+    const daysEl = $('[data-days]', callForm);
+    const timesEl = $('[data-times]', callForm);
+    const slotInput = $('[data-slot-input]', callForm);
+    const summary = $('[data-call-summary]', callForm);
+    const status = $('[data-call-status]', callForm);
+    const submitBtn = $('[data-call-submit]', callForm);
+    const submitText = $('[data-call-submit-text]', callForm);
+    const success = $('[data-call-success]', callForm);
+    const sameTZ = new Date().getTimezoneOffset() === -IST;
+    const localTZ = (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local').replace(/_/g, ' ');
+    $('[data-tz-note]', callForm).textContent = sameTZ ? '(IST, 30 min)' : `(IST · your time zone: ${localTZ})`;
+
+    const utcFmt = (o) => new Intl.DateTimeFormat('en-GB', Object.assign({ timeZone: 'UTC' }, o));
+    const fDay = utcFmt({ weekday: 'short' }), fMon = utcFmt({ month: 'short' });
+    const fLocal = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    const h12 = (h, m) => `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+    // A slot's real instant: IST wall-clock → UTC milliseconds
+    const instant = (day, h, m) => Date.UTC(day.y, day.mo, day.d, h, m) - IST * 60000;
+
+    // Next 10 working days (Mon–Fri) in IST that still have an available slot
+    const days = [];
+    const nowIst = new Date(Date.now() + IST * 60000);
+    for (let i = 0; days.length < 10 && i < 30; i++) {
+      const dt = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate() + i));
+      const wd = dt.getUTCDay();
+      if (wd === 0 || wd === 6) continue;
+      const day = { y: dt.getUTCFullYear(), mo: dt.getUTCMonth(), d: dt.getUTCDate(), date: dt };
+      if (SLOTS.some(([h, m]) => instant(day, h, m) > Date.now() + LEAD_MS)) days.push(day);
+    }
+
+    let selDay = null, selTime = null;
+    const updateSummary = () => {
+      if (!selDay || !selTime) { slotInput.value = ''; summary.textContent = 'Choose a day and time above.'; return; }
+      const [h, m] = selTime;
+      const label = `${fDay.format(selDay.date)} ${selDay.d} ${fMon.format(selDay.date)} ${selDay.y}, ${h12(h, m)} IST`;
+      const local = sameTZ ? '' : ` (${fLocal.format(new Date(instant(selDay, h, m)))} your time)`;
+      slotInput.value = label + local;
+      summary.innerHTML = `Requested slot: <strong>${label}</strong>${local}. Vikas will confirm by email.`;
+    };
+    const renderTimes = () => {
+      timesEl.innerHTML = '';
+      if (!selDay) { timesEl.innerHTML = '<p class="call__empty">Choose a day first.</p>'; return; }
+      SLOTS.forEach(([h, m]) => {
+        const at = instant(selDay, h, m);
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'call__time'; b.setAttribute('role', 'radio');
+        b.disabled = at <= Date.now() + LEAD_MS;
+        b.setAttribute('aria-checked', String(!!selTime && selTime[0] === h && selTime[1] === m));
+        b.innerHTML = `<strong>${h12(h, m)} IST</strong><small>${sameTZ ? '30 min' : fLocal.format(new Date(at)) + ' your time'}</small>`;
+        b.addEventListener('click', () => { selTime = [h, m]; renderTimes(); updateSummary(); });
+        timesEl.appendChild(b);
+      });
+    };
+    days.forEach((day, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'call__day'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', 'false');
+      b.innerHTML = `<small>${i === 0 && day.d === nowIst.getUTCDate() ? 'Today' : fDay.format(day.date)}</small><strong>${day.d}</strong><em>${fMon.format(day.date)}</em>`;
+      b.addEventListener('click', () => {
+        selDay = day; selTime = null;
+        $$('.call__day', daysEl).forEach(x => x.setAttribute('aria-checked', String(x === b)));
+        renderTimes(); updateSummary();
+      });
+      daysEl.appendChild(b);
+    });
+    renderTimes();
+
+    // Instant booking tab (only when a Calendly / Google appointment link is configured)
+    const modeBtns = $$('[data-callmode]');
+    modeBtns.forEach(btn => btn.addEventListener('click', () => {
+      modeBtns.forEach(x => x.setAttribute('aria-selected', String(x === btn)));
+      $$('[data-callpane]').forEach(p => { p.hidden = p.dataset.callpane !== btn.dataset.callmode; });
+      const frame = $('[data-callpane="instant"] iframe');
+      if (btn.dataset.callmode === 'instant' && frame && !frame.src) frame.src = frame.dataset.src;
+    }));
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    callForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nameEl = $('input[name="name"]', callForm), mailEl = $('input[name="email"]', callForm);
+      $$('.cfield', callForm).forEach(f => f.classList.remove('is-invalid'));
+      let err = '';
+      if (!slotInput.value) err = 'Please choose a day and a time.';
+      else if (!nameEl.value.trim()) { err = 'Please enter your name.'; nameEl.closest('.cfield').classList.add('is-invalid'); nameEl.focus(); }
+      else if (!emailRe.test(mailEl.value.trim())) { err = 'Please enter a valid email.'; mailEl.closest('.cfield').classList.add('is-invalid'); mailEl.focus(); }
+      if (err) { status.textContent = err; status.classList.add('is-error'); return; }
+
+      status.textContent = ''; status.classList.remove('is-error');
+      submitBtn.classList.add('is-loading'); submitText.textContent = 'Sending…';
+      try {
+        const res = await fetch(callForm.action, { method: 'POST', body: new FormData(callForm), headers: { Accept: 'application/json' } });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) throw new Error(json.error || 'Something went wrong.');
+        $('[data-call-done-text]', callForm).textContent = `${slotInput.value}. A confirmation is on its way to ${mailEl.value.trim()}, and Vikas will confirm the slot within one working day.`;
+        success.hidden = false;
+      } catch (ex) {
+        status.textContent = `${ex.message} You can also email vikasr.giri@outlook.com.`;
+        status.classList.add('is-error');
+      } finally {
+        submitBtn.classList.remove('is-loading'); submitText.textContent = 'Request this call';
+      }
+    });
+    $('[data-call-reset]', callForm).addEventListener('click', () => {
+      success.hidden = true; callForm.reset(); slotInput.value = '';
+      selDay = null; selTime = null;
+      $$('.call__day', daysEl).forEach(x => x.setAttribute('aria-checked', 'false'));
+      renderTimes(); updateSummary();
+    });
+  }
+
   /* ---------- Resume paper ---------- */
   const paper = $('[data-paper]');
   if (paper) {

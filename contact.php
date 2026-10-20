@@ -51,11 +51,20 @@ $email   = $clean('email', 120);
 $company = $clean('company', 120);
 $message = $clean('message', 3000);
 $type    = $clean('type', 40);
-if (!in_array($type, ['Full-time role', 'Freelance project', 'Something else'], true)) { $type = 'Something else'; }
+$slot    = $clean('slot', 80);     // "Book a Call" app: preferred date + time
+$phone   = preg_replace('/[^0-9+()\-\s]/', '', $clean('phone', 30));
+if (!in_array($type, ['Full-time role', 'Freelance project', 'Something else', 'Interview call'], true)) { $type = 'Something else'; }
+if ($type === 'Interview call' && $message === '') { $message = 'Interview call requested.'; }
+if ($type === 'Interview call' && $slot === '') {
+    respond(false, 'Please choose a date and time for the call.', 422);
+}
 
-if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($message) < 10) {
+if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($message) < ($type === 'Interview call' ? 1 : 10)) {
     respond(false, 'Please fill in your name, a valid email and a message.', 422);
 }
+$csvMessage = $type === 'Interview call'
+    ? "Preferred slot: {$slot}" . ($phone !== '' ? " | Phone: {$phone}" : '') . "\n{$message}"
+    : $message;
 
 // Store the lead
 $dir = __DIR__ . '/data';
@@ -73,7 +82,7 @@ if ($isNew) {
 }
 // Prefix values that spreadsheet apps would treat as formulas
 $safe = fn(string $v) => preg_match('/^[=+\-@\t\r]/', $v) ? "'" . $v : $v;
-fputcsv($fh, array_map($safe, [date('Y-m-d H:i'), $type, $name, $email, $company, $message, $_SERVER['REMOTE_ADDR'] ?? '']));
+fputcsv($fh, array_map($safe, [date('Y-m-d H:i'), $type, $name, $email, $company, $csvMessage, $_SERVER['REMOTE_ADDR'] ?? '']));
 flock($fh, LOCK_UN);
 fclose($fh);
 
@@ -104,10 +113,15 @@ if ($wantsJson) {
 require __DIR__ . '/includes/mailer.php';
 $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
 $siteUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
-send_inquiry_mails(
-    ['date' => date('d M Y, H:i'), 'type' => $type, 'name' => $name, 'email' => $email, 'company' => $company, 'message' => $message],
-    $p,
-    $siteUrl
-);
+$lead = [
+    'date' => date('d M Y, H:i'), 'type' => $type, 'name' => $name, 'email' => $email, 'company' => $company,
+    'message' => $message, 'slot' => $slot, 'phone' => $phone, 'source' => $_SERVER['HTTP_HOST'] ?? '',
+];
+send_inquiry_mails($lead, $p, $siteUrl);
+
+// Also keep every lead in the Google Sheet (survives redeploys, unlike data/leads.csv)
+if (relay_configured() && !relay_log_lead($lead, $sheetErr)) {
+    mail_log('Lead not saved to Google Sheet: ' . $sheetErr);
+}
 
 if (!$wantsJson) { respond(true); }

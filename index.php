@@ -35,6 +35,7 @@ $apps = [
     'resume'     => ['Resume.pdf', 'pdf',     35,  5, 700, 680, 'pdfdoc', 'Resume.pdf'],
     'terminal'   => ['Terminal',   'term',    38, 22, 620, 420, 'app',    'Terminal'],
     'mail'       => ['Mail',       'mail',    36, 10, 580, 620, 'app',    'Mail'],
+    'call'       => ['Book a Call', 'call',   31,  6, 640, 660, 'app',    'Book a Call'],
 ];
 $icons = [
     'about'   => '<circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.2-3.6 4-5.2 7-5.2s5.8 1.6 7 5.2"/>',
@@ -45,6 +46,7 @@ $icons = [
     'pdf'     => '<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4M9.5 13h5M9.5 16h5"/>',
     'term'    => '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
     'mail'    => '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4.5 7 7.5 6 7.5-6"/>',
+    'call'    => '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="m9.3 14.6 2 2 3.6-3.6"/>',
 ];
 function icon(string $k, array $icons): string {
     return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $icons[$k] . '</svg>';
@@ -111,7 +113,7 @@ $termData = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=72">
+  <link rel="stylesheet" href="assets/css/style.css?v=80">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -182,6 +184,7 @@ $termData = [
     <div class="menu">
       <button type="button" class="menu__btn" aria-haspopup="true" aria-expanded="false">Hire</button>
       <div class="menu__list" role="menu" hidden>
+        <button role="menuitem" data-open="call">Book an interview call…</button>
         <button role="menuitem" data-open="mail">Send a message…</button>
         <button role="menuitem" data-copy="<?= e($p['email']) ?>">Copy email address</button>
         <a role="menuitem" href="https://wa.me/<?= e($p['phone_raw']) ?>?text=<?= $waText ?>" target="_blank" rel="noopener">WhatsApp Vikas</a>
@@ -299,7 +302,7 @@ $termData = [
         <li><button type="button" data-open="about">Read “About Me”</button></li>
         <li><button type="button" data-open="fit">Paste your JD in “Fit Check”</button></li>
         <li><button type="button" data-open="resume">Open “Resume.pdf”</button></li>
-        <li><button type="button" data-open="mail">Say hi via “Mail”</button></li>
+        <li><button type="button" data-open="call">Book a call</button> or <button type="button" data-open="mail">say hi via “Mail”</button></li>
       </ol>
       <p class="note__foot">In a hurry? <button type="button" data-action="quick">Quick view →</button></p>
     </div>
@@ -314,7 +317,7 @@ $termData = [
     <div class="widget widget--cal" data-cal>
       <div class="cal__head"><p class="cal__month" data-cal-month></p><p class="cal__today" data-cal-day></p></div>
       <div class="cal__grid" data-cal-grid></div>
-      <p class="cal__foot"><i class="dot"></i>Free for an interview call · <button type="button" data-open="mail">book</button></p>
+      <p class="cal__foot"><i class="dot"></i>Free for an interview call · <button type="button" data-open="call">book</button></p>
     </div>
     <div class="widget widget--status">
       <p class="widget__label">Availability</p>
@@ -552,6 +555,65 @@ $termData = [
       </div>
     </section>
 
+    <!-- BOOK A CALL -->
+    <section class="win" id="win-call" data-app="call" data-geo="<?= implode(',', array_slice($apps['call'], 2, 4)) ?>" role="dialog" aria-label="Book a Call" tabindex="-1" hidden>
+      <header class="win__bar" data-drag>
+        <div class="win__lights"><button type="button" class="tl tl--close" data-close aria-label="Close Book a Call"></button><button type="button" class="tl tl--min" data-min aria-label="Minimise"></button><button type="button" class="tl tl--max" data-max aria-label="Maximise"></button></div>
+        <p class="win__title"><span class="win__ico appicon--call"><?= icon('call', $icons) ?></span>Book a Call</p>
+        <button type="button" class="win__back" data-close>‹ Home</button>
+      </header>
+      <div class="win__body call" data-call>
+        <h2 class="win__h">Book an interview call</h2>
+        <p class="muted">Pick a day and time that suits you. Times are in India Standard Time (IST); your local time is shown too. Vikas confirms by email within one working day.</p>
+
+        <?php if (!empty($p['booking_url'])): ?>
+          <div class="call__modes" role="tablist" aria-label="Booking method">
+            <button type="button" role="tab" aria-selected="true" data-callmode="request">Request a slot</button>
+            <button type="button" role="tab" aria-selected="false" data-callmode="instant">Instant booking</button>
+          </div>
+          <div class="call__instant" data-callpane="instant" hidden>
+            <iframe title="Book a call with Vikas" data-src="<?= e($p['booking_url']) ?>" loading="lazy"></iframe>
+            <a class="btn btn--ghost btn--xs" href="<?= e($p['booking_url']) ?>" target="_blank" rel="noopener">Open booking page in a new tab ↗</a>
+          </div>
+        <?php endif; ?>
+
+        <form class="callform" action="contact.php" method="post" data-callform data-callpane="request" novalidate>
+          <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+          <input type="hidden" name="type" value="Interview call">
+          <input type="hidden" name="slot" value="" data-slot-input>
+          <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+          <p class="call__step"><span>1</span>Choose a day</p>
+          <div class="call__days" data-days role="radiogroup" aria-label="Day"></div>
+
+          <p class="call__step"><span>2</span>Choose a time <small class="muted" data-tz-note></small></p>
+          <div class="call__times" data-times role="radiogroup" aria-label="Time"></div>
+
+          <p class="call__step"><span>3</span>Your details</p>
+          <div class="call__fields">
+            <label class="cfield"><span>Name *</span><input type="text" name="name" required maxlength="80" autocomplete="name" placeholder="Priya Sharma"></label>
+            <label class="cfield"><span>Work email *</span><input type="email" name="email" required maxlength="120" autocomplete="email" placeholder="priya@company.com"></label>
+            <label class="cfield"><span>Phone (optional)</span><input type="tel" name="phone" maxlength="30" autocomplete="tel" placeholder="+91 98765 43210"></label>
+            <label class="cfield"><span>Company</span><input type="text" name="company" maxlength="120" autocomplete="organization" placeholder="Company name"></label>
+            <label class="cfield cfield--wide"><span>Role / agenda (optional)</span><textarea name="message" rows="3" maxlength="1500" placeholder="e.g. SEO Executive role, 30-minute intro call"></textarea></label>
+          </div>
+
+          <div class="call__summary" data-call-summary>Choose a day and time above.</div>
+          <div class="call__foot">
+            <p class="form__status" data-call-status role="status" aria-live="polite"></p>
+            <button class="btn btn--primary" type="submit" data-call-submit><span data-call-submit-text>Request this call</span></button>
+          </div>
+
+          <div class="form__success" data-call-success hidden>
+            <span class="form__check" aria-hidden="true">✓</span>
+            <p class="form__done">Call requested</p>
+            <p class="muted" data-call-done-text>Vikas will confirm by email within one working day.</p>
+            <button type="button" class="btn btn--ghost" data-call-reset>Book another time</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
     <!-- MAIL -->
     <section class="win" id="win-mail" data-app="mail" data-geo="<?= implode(',', array_slice($apps['mail'], 2)) ?>" role="dialog" aria-label="Mail" tabindex="-1" hidden>
       <header class="win__bar" data-drag>
@@ -626,6 +688,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=72" defer></script>
+<script src="assets/js/main.js?v=80" defer></script>
 </body>
 </html>

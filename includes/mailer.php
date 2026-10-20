@@ -48,15 +48,40 @@ function relay_configured(): bool
 function relay_send(array $msg, ?string &$error = null): bool
 {
     $c = mail_config();
-    $payload = json_encode([
-        'secret'   => $c['relay_secret'],
+    return relay_post([
         'to'       => $msg['to'][0],
         'replyTo'  => $msg['replyTo'][0],
         'subject'  => $msg['subject'],
         'html'     => $msg['html'],
         'text'     => $msg['text'],
         'fromName' => $c['from_name'],
-    ], JSON_UNESCAPED_UNICODE);
+    ], $error);
+}
+
+/**
+ * Append one lead as a row in the Google Sheet (action "lead" of the same Apps Script).
+ * The script creates the "Vikas OS – Leads" spreadsheet on first use.
+ */
+function relay_log_lead(array $lead, ?string &$error = null): bool
+{
+    return relay_post(['action' => 'lead', 'lead' => [
+        'date'    => $lead['date'],
+        'type'    => $lead['type'],
+        'name'    => $lead['name'],
+        'email'   => $lead['email'],
+        'phone'   => $lead['phone'] ?? '',
+        'company' => $lead['company'],
+        'slot'    => $lead['slot'] ?? '',
+        'message' => $lead['message'],
+        'source'  => $lead['source'] ?? '',
+    ]], $error);
+}
+
+/** POST a JSON payload (secret added) to the Apps Script web app and check {"ok":true}. */
+function relay_post(array $data, ?string &$error = null): bool
+{
+    $c = mail_config();
+    $payload = json_encode(['secret' => $c['relay_secret']] + $data, JSON_UNESCAPED_UNICODE);
 
     $ch = curl_init($c['relay_url']);
     curl_setopt_array($ch, [
@@ -75,12 +100,13 @@ function relay_send(array $msg, ?string &$error = null): bool
     curl_close($ch);
 
     if ($body === false) { $error = "Gmail relay unreachable: {$curlErr}"; return false; }
-    $json = json_decode((string)$body, true);
+    $json = json_decode(preg_replace('/^\xEF\xBB\xBF/', '', trim((string)$body)), true); // tolerate a UTF-8 BOM
     if ($status === 200 && is_array($json) && !empty($json['ok'])) { return true; }
 
     $reason = is_array($json) ? (string)($json['error'] ?? 'unknown error') : 'unexpected response (HTTP ' . $status . ')';
     if ($reason === 'unauthorized') { $reason = 'unauthorized: GMAIL_RELAY_SECRET does not match RELAY_SECRET in the Apps Script'; }
     elseif (!is_array($json) && stripos((string)$body, '<html') !== false) { $reason .= '. Is the web app deployed with "Who has access: Anyone"?'; }
+    elseif ($reason === 'unknown action') { $reason .= ': redeploy the Apps Script (Deploy → Manage deployments → Edit → New version)'; }
     $error = 'Gmail relay failed: ' . $reason;
     return false;
 }
@@ -191,11 +217,19 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
     $public = site_is_public($siteUrl);
     $messages = [];
 
+    $isCall = $lead['type'] === 'Interview call';
+    $slot   = (string)($lead['slot'] ?? '');
+    $phone  = (string)($lead['phone'] ?? '');
+
     // 1) Notification to Vikas
-    $inner = '<p style="margin:0 0 16px 0;">You have a new inquiry from your portfolio website.</p>'
+    $inner = '<p style="margin:0 0 16px 0;">' . ($isCall
+            ? 'A recruiter has <strong>requested an interview call</strong> from your portfolio website. Please confirm the slot by replying to this email.'
+            : 'You have a new inquiry from your portfolio website.') . '</p>'
         . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px 0;">'
+        . ($isCall && $slot !== '' ? detail_row('Preferred slot', '<strong>' . h($slot) . '</strong>') : '')
         . detail_row('Name', h($lead['name']))
         . detail_row('Email', '<a href="mailto:' . h($lead['email']) . '" style="color:#2B44C4;text-decoration:none;">' . h($lead['email']) . '</a>')
+        . ($phone !== '' ? detail_row('Phone', '<a href="tel:' . h(preg_replace('/[^0-9+]/', '', $phone)) . '" style="color:#2B44C4;text-decoration:none;">' . h($phone) . '</a>') : '')
         . detail_row('Company', h($lead['company'] !== '' ? $lead['company'] : '-'))
         . detail_row('Regarding', h($lead['type']))
         . detail_row('Received', h($lead['date']))
@@ -206,10 +240,12 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
     $messages['notify'] = [
         'to'      => [$c['to_email'], $c['to_name']],
         'replyTo' => [$lead['email'], $lead['name']],
-        'subject' => 'Portfolio inquiry from ' . $lead['name'] . ' (' . $lead['type'] . ')',
+        'subject' => $isCall
+            ? 'Interview call request from ' . $lead['name'] . ($slot !== '' ? ': ' . $slot : '')
+            : 'Portfolio inquiry from ' . $lead['name'] . ' (' . $lead['type'] . ')',
         'html'    => email_layout($inner, 'Sent from the contact form on your portfolio website.'),
-        'text'    => "You have a new inquiry from your portfolio website.\n\n"
-            . "Name: {$lead['name']}\nEmail: {$lead['email']}\nCompany: " . ($lead['company'] !== '' ? $lead['company'] : '-') . "\n"
+        'text'    => ($isCall ? "Interview call requested from your portfolio website.\nPreferred slot: {$slot}\n\n" : "You have a new inquiry from your portfolio website.\n\n")
+            . "Name: {$lead['name']}\nEmail: {$lead['email']}\n" . ($phone !== '' ? "Phone: {$phone}\n" : '') . "Company: " . ($lead['company'] !== '' ? $lead['company'] : '-') . "\n"
             . "Regarding: {$lead['type']}\nReceived: {$lead['date']}\n\nMessage:\n{$lead['message']}\n\n"
             . "Reply to this email to respond directly to {$lead['name']}.",
         'headers' => [],
@@ -218,9 +254,17 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
     // 2) Auto-reply to the sender
     if (!empty($c['auto_reply'])) {
         $first = trim(explode(' ', trim($lead['name']))[0]) ?: $lead['name'];
+        $about = ['Full-time role' => 'a full-time role', 'Freelance project' => 'a freelance project'][$lead['type']] ?? '';
+        $opening = $isCall
+            ? 'Thank you for requesting an interview call' . ($slot !== '' ? ' for <strong>' . h($slot) . '</strong>' : '') . '. '
+              . 'I will confirm this slot, or suggest the nearest alternative, by email within one working day.'
+            : 'Thank you for contacting me' . ($about !== '' ? ' regarding <strong>' . h($about) . '</strong>' : '') . '. '
+              . 'This is a short note to confirm that your message has reached me. I will review it and reply personally within one working day.';
+        $openingText = $isCall
+            ? 'Thank you for requesting an interview call' . ($slot !== '' ? " for {$slot}" : '') . '. I will confirm this slot, or suggest the nearest alternative, by email within one working day.'
+            : 'Thank you for contacting me' . ($about !== '' ? " regarding {$about}" : '') . '. This is a short note to confirm that your message has reached me. I will review it and reply personally within one working day.';
         $inner = '<p style="margin:0 0 16px 0;">Dear ' . h($first) . ',</p>'
-            . '<p style="margin:0 0 16px 0;">Thank you for contacting me regarding a <strong>' . h(strtolower($lead['type'])) . '</strong>. '
-            . 'This is a short note to confirm that your message has reached me. I will review it and reply personally within one working day.</p>'
+            . '<p style="margin:0 0 16px 0;">' . $opening . '</p>'
             . '<p style="margin:0 0 16px 0;">For reference, I am a Digital Marketing Specialist with over three years of experience in B2B and export marketing, '
             . 'covering SEO, Google Ads, Meta Ads and lead generation through IndiaMART and Alibaba.com.</p>';
         if ($public) {
@@ -234,10 +278,10 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
         $messages['reply'] = [
             'to'      => [$lead['email'], $lead['name']],
             'replyTo' => [$c['to_email'], $c['to_name']],
-            'subject' => 'Thank you for your message',
+            'subject' => $isCall ? 'Your interview call request' . ($slot !== '' ? ': ' . $slot : '') : 'Thank you for your message',
             'html'    => email_layout($inner, $quoted . '<p style="margin:12px 0 0 0;">You received this email because you submitted the contact form on Vikas Rambaul Giri\'s portfolio.</p>'),
             'text'    => "Dear {$first},\n\n"
-                . "Thank you for contacting me regarding a " . strtolower($lead['type']) . ". This is a short note to confirm that your message has reached me. I will review it and reply personally within one working day.\n\n"
+                . $openingText . "\n\n"
                 . "For reference, I am a Digital Marketing Specialist with over three years of experience in B2B and export marketing, covering SEO, Google Ads, Meta Ads and lead generation through IndiaMART and Alibaba.com.\n\n"
                 . ($public ? "My resume: {$siteUrl}{$profile['resume']}\n\n" : '')
                 . "If your request is urgent, you can also reach me on {$profile['phone']}.\n\n"
