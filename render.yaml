@@ -1,0 +1,17 @@
+# Render Blueprint: one-click deploy of Vikas OS (free plan)
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: vikas-os
+    runtime: docker
+    plan: free
+    region: singapore
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: BREVO_API_KEY      # Brevo → SMTP & API → API Keys
+        sync: false
+      - key: MAIL_FROM          # a sender email verified in Brevo
+        sync: false
+      - key: MAIL_TO
+        value: vikasr.giri@outlook.com
