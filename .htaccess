@@ -1,6 +1,18 @@
 DirectoryIndex index.php
 Options -Indexes
 
+# Friendly 404 ("This window doesn't exist") at the site root
+ErrorDocument 404 /404.php
+
+# robots.txt and sitemap.xml are generated with the site's real URL
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^robots\.txt$ robots.php [L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+</IfModule>
+
+AddType application/manifest+json .webmanifest
+
 # Keep leads and config private
 RedirectMatch 403 ^.*/(data|includes)/
 
@@ -8,6 +20,7 @@ RedirectMatch 403 ^.*/(data|includes)/
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   Header set X-Frame-Options "SAMEORIGIN"
+  Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
 </IfModule>
 
 # Compression (never for contact.php / mail-test.php: compression buffers the

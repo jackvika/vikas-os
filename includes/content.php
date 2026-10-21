@@ -17,6 +17,11 @@ return [
     'resume'    => 'Vikas_Rambaul_Giri_Resume.pdf',
     'linkedin'  => '', // e.g. https://www.linkedin.com/in/your-handle
     'booking_url' => '', // Optional: Calendly or Google Calendar appointment link (shown inside the "Book a Call" app)
+    // Book a Call app: interview slots in IST (24h), how many working days to offer, minimum notice
+    'call_slots'        => ['10:00', '11:00', '12:00', '14:30', '15:30', '16:30', '17:30'],
+    'call_days'         => 10,
+    'call_notice_hours' => 2,
+    'call_minutes'      => 30,
 
     'summary' => 'Digital Marketing Specialist & SEO Expert with 3+ years in B2B and export marketing. I rank websites, run Google & Meta campaigns, and turn IndiaMART, Alibaba.com and TradeIndia into steady pipelines of qualified buyers — and I write the code for the pages that convert them.',
 

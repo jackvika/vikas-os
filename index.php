@@ -51,6 +51,17 @@ $icons = [
 function icon(string $k, array $icons): string {
     return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $icons[$k] . '</svg>';
 }
+/** "06/2023 — 11/2025" or "08/2026 — Present" → "2 yrs 6 mos" (months counted inclusively, like LinkedIn). */
+function duration(string $period): string {
+    if (!preg_match('#(\d{2})/(\d{4})\s*[—–-]\s*(?:(\d{2})/(\d{4})|Present)#u', $period, $m)) { return ''; }
+    $endY = isset($m[4]) && $m[4] !== '' ? (int)$m[4] : (int)date('Y');
+    $endM = isset($m[3]) && $m[3] !== '' ? (int)$m[3] : (int)date('n');
+    $months = ($endY - (int)$m[2]) * 12 + ($endM - (int)$m[1]) + 1;
+    if ($months < 1) { return ''; }
+    $y = intdiv($months, 12); $mo = $months % 12;
+    return trim(($y ? $y . ' yr' . ($y > 1 ? 's' : '') : '') . ' ' . ($mo ? $mo . ' mo' . ($mo > 1 ? 's' : '') : ''));
+}
+
 /* Realistic desktop icons: folders (with emblem), documents, app tiles */
 function deskIcon(array $a, array $icons): string {
     switch ($a[6]) {
@@ -85,6 +96,12 @@ $termData = [
     'skills' => array_map(fn($g) => array_map(fn($s) => $s[0], $g), $groups),
     'results' => array_map(fn($c) => [$c['metric'][0], $c['title']], $p['cases']),
     'resume' => $hasResume ? $p['resume'] : '',
+    'call' => [
+        'slots'   => $p['call_slots'] ?? [],
+        'days'    => (int)($p['call_days'] ?? 10),
+        'notice'  => (int)($p['call_notice_hours'] ?? 2),
+        'minutes' => (int)($p['call_minutes'] ?? 30),
+    ],
 ];
 ?><!DOCTYPE html>
 <html lang="en">
@@ -109,11 +126,16 @@ $termData = [
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="<?= e($baseUrl) ?>assets/img/og-image.png">
 
+  <meta property="og:image:alt" content="Vikas OS: About Me window with +200% organic traffic, 3+ years in B2B &amp; export marketing">
+
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="Vikas OS">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=80">
+  <link rel="stylesheet" href="assets/css/style.css?v=90">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -123,6 +145,18 @@ $termData = [
       var w = localStorage.getItem('wallpaper'); if (w) document.documentElement.setAttribute('data-wp', w);
     } catch (e) {}
   </script>
+  <noscript>
+    <style>
+      /* Without JavaScript: skip the boot screen and show every window as a readable page */
+      .boot, .icons, .widgets, .dock, .win__lights, .win__back { display: none !important; }
+      body { overflow: auto; }
+      .desktop { position: relative; overflow: visible; display: flex; flex-direction: column; min-height: 100%; padding: calc(var(--mb-total) + 24px) 16px 60px; }
+      .wallpaper { position: fixed; }
+      .windows { position: relative; inset: auto; pointer-events: auto; display: flex; flex-direction: column; gap: 18px; max-width: 860px; width: 100%; margin: 0 auto; }
+      .win, .win[hidden] { display: flex !important; position: relative !important; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; z-index: auto !important; animation: none; }
+      .win__body { overflow: visible; }
+    </style>
+  </noscript>
 
   <script type="application/ld+json">
   <?= json_encode([
@@ -358,6 +392,13 @@ $termData = [
           <div><dt>Education</dt><dd>B.Sc. IT, University of Mumbai (2021)</dd></div>
           <div><dt>Core stack</dt><dd>SEO · Google Ads · Meta Ads · IndiaMART · Alibaba.com · CRM</dd></div>
         </dl>
+        <h2 class="about__h">Why hire me</h2>
+        <ol class="why">
+          <li><strong>I know B2B &amp; export buyers.</strong> Industrial products, OEM/ODM inquiries and marketplace leads are my everyday work.</li>
+          <li><strong>I own the whole funnel.</strong> SEO, Google &amp; Meta Ads, landing pages and CRM follow-up, so no lead falls between teams.</li>
+          <li><strong>I'm technical.</strong> Website migrations, index clean-ups and landing pages don't have to wait for a developer.</li>
+        </ol>
+        <p class="about__fit"><span>Best fit for</span> SEO Executive · Digital Marketing Executive / Specialist · B2B &amp; Export Marketing</p>
         <div class="about__actions">
           <?php if ($hasResume): ?><a class="btn btn--primary" href="<?= e($p['resume']) ?>" download>Download CV</a><?php endif; ?>
           <button type="button" class="btn btn--ghost" data-open="fit">Check fit for your role</button>
@@ -408,7 +449,7 @@ $termData = [
         <ol class="timeline">
           <?php foreach ($p['experience'] as $x): ?>
             <li class="job<?= $x['current'] ? ' job--now' : '' ?>">
-              <div class="job__top"><span class="job__date"><?= e($x['period']) ?></span><?php if ($x['current']): ?><span class="badge">Current</span><?php else: ?><span class="badge badge--muted"><?= e($x['type']) ?></span><?php endif; ?></div>
+              <div class="job__top"><span class="job__date"><?= e($x['period']) ?><?php if ($d = duration($x['period'])): ?> <span class="job__dur">· <?= e($d) ?></span><?php endif; ?></span><?php if ($x['current']): ?><span class="badge">Current</span><?php else: ?><span class="badge badge--muted"><?= e($x['type']) ?></span><?php endif; ?></div>
               <h3 class="job__role"><?= e($x['role']) ?></h3>
               <p class="job__co"><?= e($x['company']) ?></p>
               <ul class="job__pts"><?php foreach ($x['points'] as $pt): ?><li><?= e($pt) ?></li><?php endforeach; ?></ul>
@@ -581,6 +622,7 @@ $termData = [
           <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
           <input type="hidden" name="type" value="Interview call">
           <input type="hidden" name="slot" value="" data-slot-input>
+          <input type="hidden" name="slot_start" value="" data-slot-start>
           <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
           <p class="call__step"><span>1</span>Choose a day</p>
@@ -688,6 +730,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=80" defer></script>
+<script src="assets/js/main.js?v=90" defer></script>
 </body>
 </html>

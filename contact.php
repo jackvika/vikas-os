@@ -55,8 +55,19 @@ $slot    = $clean('slot', 80);     // "Book a Call" app: preferred date + time
 $phone   = preg_replace('/[^0-9+()\-\s]/', '', $clean('phone', 30));
 if (!in_array($type, ['Full-time role', 'Freelance project', 'Something else', 'Interview call'], true)) { $type = 'Something else'; }
 if ($type === 'Interview call' && $message === '') { $message = 'Interview call requested.'; }
-if ($type === 'Interview call' && $slot === '') {
-    respond(false, 'Please choose a date and time for the call.', 422);
+
+// Book a Call: the server decides the slot (valid day/time, enough notice, still free)
+$slotStart = null;
+if ($type === 'Interview call') {
+    require_once __DIR__ . '/includes/booking.php';
+    $parsed = booking_parse_slot($clean('slot_start', 30), $p, $slotErr);
+    if (!$parsed) { respond(false, (string)$slotErr, 422); }
+    $slotStart = $parsed['start'];
+    if (in_array($slotStart->format('Y-m-d\TH:i:s\Z'), booking_busy(true), true)) {
+        respond(false, 'Sorry, that time was just booked by someone else. Please choose another slot.', 409);
+    }
+    // Keep the visitor's "(…your time)" hint only if it belongs to the same IST slot
+    $slot = str_starts_with($slot, $parsed['label']) ? $slot : $parsed['label'];
 }
 
 if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($message) < ($type === 'Interview call' ? 1 : 10)) {
@@ -110,18 +121,33 @@ if ($wantsJson) {
 }
 
 // Email notification + auto-reply via PHPMailer (skipped until SMTP is configured)
-require __DIR__ . '/includes/mailer.php';
+require_once __DIR__ . '/includes/mailer.php';
 $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
 $siteUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
 $lead = [
     'date' => date('d M Y, H:i'), 'type' => $type, 'name' => $name, 'email' => $email, 'company' => $company,
     'message' => $message, 'slot' => $slot, 'phone' => $phone, 'source' => $_SERVER['HTTP_HOST'] ?? '',
 ];
+if ($slotStart) {
+    $mins = (int)($p['call_minutes'] ?? 30);
+    $lead['slot_start'] = $slotStart->format('Y-m-d\TH:i:s\Z');
+    $lead['gcal_host'] = gcal_link(
+        'Interview call: ' . $name . ($company !== '' ? " ({$company})" : ''),
+        $slotStart, $mins,
+        "Requested via your portfolio.\nEmail: {$email}" . ($phone !== '' ? "\nPhone: {$phone}" : '') . "\nAgenda: {$message}"
+    );
+    $lead['gcal_guest'] = gcal_link(
+        'Call with Vikas Rambaul Giri (to be confirmed)',
+        $slotStart, $mins,
+        "Interview call with Vikas Rambaul Giri, {$p['title']}.\nPhone: {$p['phone']}\nEmail: {$p['email']}\nVikas will confirm this time by email."
+    );
+}
 send_inquiry_mails($lead, $p, $siteUrl);
 
 // Also keep every lead in the Google Sheet (survives redeploys, unlike data/leads.csv)
 if (relay_configured() && !relay_log_lead($lead, $sheetErr)) {
     mail_log('Lead not saved to Google Sheet: ' . $sheetErr);
 }
+if ($slotStart) { booking_busy_forget(); } // next visitor sees this slot as booked
 
 if (!$wantsJson) { respond(true); }

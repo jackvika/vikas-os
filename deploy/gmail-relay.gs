@@ -23,7 +23,8 @@
  */
 
 var SHEET_NAME = 'Vikas OS – Leads';
-var HEADERS = ['Received', 'Type', 'Name', 'Email', 'Phone', 'Company', 'Preferred slot', 'Message', 'Source', 'Status'];
+var HEADERS = ['Received', 'Type', 'Name', 'Email', 'Phone', 'Company', 'Preferred slot', 'Message', 'Source', 'Status', 'Slot start (UTC)'];
+var COL_TYPE = 2, COL_STATUS = 10, COL_SLOT_START = 11; // 1-based column numbers
 
 function doPost(e) {
   try {
@@ -33,6 +34,9 @@ function doPost(e) {
       return json_({ ok: false, error: 'unauthorized' });
     }
 
+    if (data.action === 'busy') {
+      return json_({ ok: true, busy: busySlots_() });
+    }
     if (data.action === 'lead') {
       var url = appendLead_(data.lead || {});
       return json_({ ok: true, sheet: url });
@@ -76,7 +80,7 @@ function appendLead_(lead) {
   var sheet = leadsSheet_();
   var row = [
     lead.date, lead.type, lead.name, lead.email, lead.phone, lead.company,
-    lead.slot, lead.message, lead.source, 'New'
+    lead.slot, lead.message, lead.source, 'New', lead.slotStart
   ].map(safeCell_);
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -104,11 +108,40 @@ function leadsSheet_() {
   if (sheet.getLastRow() === 0) {
     sheet.setName('Leads');
     sheet.appendRow(HEADERS);
-    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold').setBackground('#E8F0FE');
     sheet.setFrozenRows(1);
     sheet.setColumnWidth(8, 420);
   }
+  // Older sheets: add any header columns introduced later (e.g. "Slot start (UTC)")
+  var header = sheet.getRange(1, 1, 1, HEADERS.length);
+  if (String(sheet.getRange(1, HEADERS.length).getValue()) !== HEADERS[HEADERS.length - 1]) {
+    header.setValues([HEADERS]);
+  }
+  header.setFontWeight('bold').setBackground('#E8F0FE');
+  sheet.getRange(1, COL_SLOT_START, sheet.getMaxRows(), 1).setNumberFormat('@'); // keep ISO times as plain text
   return sheet;
+}
+
+/**
+ * Upcoming booked interview slots (UTC ISO strings) so the website can hide them.
+ * A booking stops blocking its slot when you set its Status to "Cancelled" or "Rejected".
+ */
+function busySlots_() {
+  var sheet = leadsSheet_();
+  var last = sheet.getLastRow();
+  if (last < 2) { return []; }
+  var rows = sheet.getRange(2, 1, last - 1, HEADERS.length).getValues();
+  var now = new Date().toISOString();
+  var busy = {};
+  rows.forEach(function (r) {
+    var type = String(r[COL_TYPE - 1]);
+    var status = String(r[COL_STATUS - 1]).toLowerCase();
+    var cell = r[COL_SLOT_START - 1];
+    var start = cell instanceof Date ? cell.toISOString().replace('.000Z', 'Z') : String(cell).trim();
+    if (type === 'Interview call' && start && start > now && status.indexOf('cancel') === -1 && status.indexOf('reject') === -1) {
+      busy[start] = true;
+    }
+  });
+  return Object.keys(busy).sort();
 }
 
 /** Plain text only: prefix values a spreadsheet would treat as a formula. */

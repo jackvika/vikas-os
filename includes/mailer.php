@@ -72,13 +72,14 @@ function relay_log_lead(array $lead, ?string &$error = null): bool
         'phone'   => $lead['phone'] ?? '',
         'company' => $lead['company'],
         'slot'    => $lead['slot'] ?? '',
+        'slotStart' => $lead['slot_start'] ?? '',
         'message' => $lead['message'],
         'source'  => $lead['source'] ?? '',
     ]], $error);
 }
 
-/** POST a JSON payload (secret added) to the Apps Script web app and check {"ok":true}. */
-function relay_post(array $data, ?string &$error = null): bool
+/** POST a JSON payload (secret added) to the Apps Script web app; returns its decoded {"ok":true,…} answer or null. */
+function relay_request(array $data, ?string &$error = null, int $timeout = 30): ?array
 {
     $c = mail_config();
     $payload = json_encode(['secret' => $c['relay_secret']] + $data, JSON_UNESCAPED_UNICODE);
@@ -92,23 +93,29 @@ function relay_post(array $data, ?string &$error = null): bool
         CURLOPT_FOLLOWLOCATION => true,   // 302 → GET the result (curl's default for 302)
         CURLOPT_MAXREDIRS      => 5,
         CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_TIMEOUT        => $timeout,
     ]);
     $body = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $curlErr = curl_error($ch);
     curl_close($ch);
 
-    if ($body === false) { $error = "Gmail relay unreachable: {$curlErr}"; return false; }
+    if ($body === false) { $error = "Gmail relay unreachable: {$curlErr}"; return null; }
     $json = json_decode(preg_replace('/^\xEF\xBB\xBF/', '', trim((string)$body)), true); // tolerate a UTF-8 BOM
-    if ($status === 200 && is_array($json) && !empty($json['ok'])) { return true; }
+    if ($status === 200 && is_array($json) && !empty($json['ok'])) { return $json; }
 
     $reason = is_array($json) ? (string)($json['error'] ?? 'unknown error') : 'unexpected response (HTTP ' . $status . ')';
     if ($reason === 'unauthorized') { $reason = 'unauthorized: GMAIL_RELAY_SECRET does not match RELAY_SECRET in the Apps Script'; }
     elseif (!is_array($json) && stripos((string)$body, '<html') !== false) { $reason .= '. Is the web app deployed with "Who has access: Anyone"?'; }
     elseif ($reason === 'unknown action') { $reason .= ': redeploy the Apps Script (Deploy → Manage deployments → Edit → New version)'; }
     $error = 'Gmail relay failed: ' . $reason;
-    return false;
+    return null;
+}
+
+/** POST a JSON payload (secret added) to the Apps Script web app; true when it answers {"ok":true}. */
+function relay_post(array $data, ?string &$error = null): bool
+{
+    return relay_request($data, $error) !== null;
 }
 
 function mail_log(string $msg): void
@@ -236,6 +243,7 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
         . '</table>'
         . '<p style="margin:0 0 8px 0;font-size:13px;color:#6B7280;">Message</p>'
         . '<div style="padding:14px 16px;background-color:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;color:#111827;">' . nl2br(h($lead['message'])) . '</div>'
+        . ($isCall && !empty($lead['gcal_host']) ? '<p style="margin:20px 0 4px 0;">Hold this slot in your calendar:</p>' . button($lead['gcal_host'], 'Add to Google Calendar') : '')
         . '<p style="margin:20px 0 0 0;font-size:13px;color:#6B7280;">Reply to this email to respond directly to ' . h($lead['name']) . '.</p>';
     $messages['notify'] = [
         'to'      => [$c['to_email'], $c['to_name']],
@@ -247,6 +255,7 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
         'text'    => ($isCall ? "Interview call requested from your portfolio website.\nPreferred slot: {$slot}\n\n" : "You have a new inquiry from your portfolio website.\n\n")
             . "Name: {$lead['name']}\nEmail: {$lead['email']}\n" . ($phone !== '' ? "Phone: {$phone}\n" : '') . "Company: " . ($lead['company'] !== '' ? $lead['company'] : '-') . "\n"
             . "Regarding: {$lead['type']}\nReceived: {$lead['date']}\n\nMessage:\n{$lead['message']}\n\n"
+            . ($isCall && !empty($lead['gcal_host']) ? "Add to Google Calendar: {$lead['gcal_host']}\n\n" : '')
             . "Reply to this email to respond directly to {$lead['name']}.",
         'headers' => [],
     ];
@@ -267,8 +276,11 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
             . '<p style="margin:0 0 16px 0;">' . $opening . '</p>'
             . '<p style="margin:0 0 16px 0;">For reference, I am a Digital Marketing Specialist with over three years of experience in B2B and export marketing, '
             . 'covering SEO, Google Ads, Meta Ads and lead generation through IndiaMART and Alibaba.com.</p>';
+        if ($isCall && !empty($lead['gcal_guest'])) {
+            $inner .= '<p style="margin:0 0 8px 0;">You can pencil it into your calendar now (I will confirm the time by email):</p>' . button($lead['gcal_guest'], 'Add to Google Calendar');
+        }
         if ($public) {
-            $inner .= '<p style="margin:0 0 8px 0;">My resume is available here:</p>' . button($siteUrl . $profile['resume'], 'View my resume');
+            $inner .= '<p style="margin:16px 0 8px 0;">My resume is available here:</p>' . button($siteUrl . $profile['resume'], 'View my resume');
         }
         $inner .= '<p style="margin:16px 0 0 0;">If your request is urgent, you can also reach me on ' . h($profile['phone']) . '.</p>'
             . signature($profile);
@@ -283,6 +295,7 @@ function build_inquiry_messages(array $lead, array $profile, string $siteUrl): a
             'text'    => "Dear {$first},\n\n"
                 . $openingText . "\n\n"
                 . "For reference, I am a Digital Marketing Specialist with over three years of experience in B2B and export marketing, covering SEO, Google Ads, Meta Ads and lead generation through IndiaMART and Alibaba.com.\n\n"
+                . ($isCall && !empty($lead['gcal_guest']) ? "Add to your calendar: {$lead['gcal_guest']}\n\n" : '')
                 . ($public ? "My resume: {$siteUrl}{$profile['resume']}\n\n" : '')
                 . "If your request is urgent, you can also reach me on {$profile['phone']}.\n\n"
                 . "Best regards,\nVikas Rambaul Giri\nDigital Marketing Specialist & SEO Expert\n{$profile['phone']} | {$profile['email']}\n\n"

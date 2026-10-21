@@ -124,8 +124,16 @@
       w.hidden = false;
       w.classList.remove('is-closing');
       if (!reduceMotion) {
-        w.classList.add('is-opening');
-        setTimeout(() => w.classList.remove('is-opening'), 360);
+        // Zoom out of the icon that was clicked (desktop), like a real OS
+        const src = !isMobile() && opts.from && opts.from.getBoundingClientRect();
+        const zoom = src && src.width > 0;
+        if (zoom) {
+          const r = w.getBoundingClientRect();
+          w.style.transformOrigin = `${src.left + src.width / 2 - r.left}px ${src.top + src.height / 2 - r.top}px`;
+        }
+        const cls = zoom ? 'is-zooming' : 'is-opening';
+        w.classList.add(cls);
+        setTimeout(() => { w.classList.remove(cls); w.style.transformOrigin = ''; }, 420);
       }
       const d = dockBtns[app];
       if (d) {
@@ -240,7 +248,7 @@
     if (cp) { closeMenus(); const v = cp.dataset.copy; copyText(v, v.includes('@') ? `Email copied: ${v}` : 'Link copied'); return; }
 
     const op = t.closest('[data-open]');
-    if (op) { e.preventDefault(); open(op.dataset.open); return; }
+    if (op) { e.preventDefault(); open(op.dataset.open, { from: op }); return; }
 
     const ac = t.closest('[data-action]');
     if (ac && actions[ac.dataset.action]) { e.preventDefault(); closeMenus(); actions[ac.dataset.action](); return; }
@@ -605,12 +613,14 @@
   /* ---------- Book a Call ---------- */
   const callForm = $('[data-callform]');
   if (callForm) {
+    const CFG = Object.assign({ slots: ['10:00', '11:00', '12:00', '14:30', '15:30', '16:30', '17:30'], days: 10, notice: 2, minutes: 30 }, DATA.call || {});
     const IST = 330; // minutes ahead of UTC
-    const SLOTS = [[10, 0], [11, 0], [12, 0], [14, 30], [15, 30], [16, 30], [17, 30]]; // IST
-    const LEAD_MS = 2 * 3600 * 1000; // need at least 2 hours' notice
+    const SLOTS = CFG.slots.map(s => s.split(':').map(Number));
+    const LEAD_MS = CFG.notice * 3600 * 1000;
     const daysEl = $('[data-days]', callForm);
     const timesEl = $('[data-times]', callForm);
     const slotInput = $('[data-slot-input]', callForm);
+    const slotStartInput = $('[data-slot-start]', callForm);
     const summary = $('[data-call-summary]', callForm);
     const status = $('[data-call-status]', callForm);
     const submitBtn = $('[data-call-submit]', callForm);
@@ -618,61 +628,128 @@
     const success = $('[data-call-success]', callForm);
     const sameTZ = new Date().getTimezoneOffset() === -IST;
     const localTZ = (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local').replace(/_/g, ' ');
-    $('[data-tz-note]', callForm).textContent = sameTZ ? '(IST, 30 min)' : `(IST · your time zone: ${localTZ})`;
+    $('[data-tz-note]', callForm).textContent = sameTZ ? `(IST, ${CFG.minutes} min)` : `(IST · your time zone: ${localTZ})`;
 
     const utcFmt = (o) => new Intl.DateTimeFormat('en-GB', Object.assign({ timeZone: 'UTC' }, o));
     const fDay = utcFmt({ weekday: 'short' }), fMon = utcFmt({ month: 'short' });
     const fLocal = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
     const h12 = (h, m) => `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-    // A slot's real instant: IST wall-clock → UTC milliseconds
-    const instant = (day, h, m) => Date.UTC(day.y, day.mo, day.d, h, m) - IST * 60000;
+    const instant = (day, h, m) => Date.UTC(day.y, day.mo, day.d, h, m) - IST * 60000; // IST wall clock → UTC ms
+    const iso = (ms) => new Date(ms).toISOString().replace('.000Z', 'Z');
+    let busy = new Set();
+    const isFree = (day, h, m) => { const at = instant(day, h, m); return at > Date.now() + LEAD_MS && !busy.has(iso(at)); };
 
-    // Next 10 working days (Mon–Fri) in IST that still have an available slot
-    const days = [];
-    const nowIst = new Date(Date.now() + IST * 60000);
-    for (let i = 0; days.length < 10 && i < 30; i++) {
-      const dt = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate() + i));
-      const wd = dt.getUTCDay();
-      if (wd === 0 || wd === 6) continue;
-      const day = { y: dt.getUTCFullYear(), mo: dt.getUTCMonth(), d: dt.getUTCDate(), date: dt };
-      if (SLOTS.some(([h, m]) => instant(day, h, m) > Date.now() + LEAD_MS)) days.push(day);
-    }
-
-    let selDay = null, selTime = null;
-    const updateSummary = () => {
-      if (!selDay || !selTime) { slotInput.value = ''; summary.textContent = 'Choose a day and time above.'; return; }
-      const [h, m] = selTime;
-      const label = `${fDay.format(selDay.date)} ${selDay.d} ${fMon.format(selDay.date)} ${selDay.y}, ${h12(h, m)} IST`;
-      const local = sameTZ ? '' : ` (${fLocal.format(new Date(instant(selDay, h, m)))} your time)`;
-      slotInput.value = label + local;
-      summary.innerHTML = `Requested slot: <strong>${label}</strong>${local}. Vikas will confirm by email.`;
+    let days = [], selDay = null, selTime = null;
+    const buildDays = () => {
+      days = [];
+      const nowIst = new Date(Date.now() + IST * 60000);
+      for (let i = 0; days.length < CFG.days && i < 30; i++) {
+        const dt = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate() + i));
+        const wd = dt.getUTCDay();
+        if (wd === 0 || wd === 6) continue;
+        const day = { y: dt.getUTCFullYear(), mo: dt.getUTCMonth(), d: dt.getUTCDate(), date: dt, today: i === 0 };
+        if (SLOTS.some(([h, m]) => isFree(day, h, m))) days.push(day);
+      }
     };
+
+    const updateSummary = () => {
+      if (!selDay || !selTime) {
+        slotInput.value = ''; slotStartInput.value = '';
+        summary.textContent = 'Choose a day and time above.';
+        return;
+      }
+      const [h, m] = selTime;
+      const at = instant(selDay, h, m);
+      const label = `${fDay.format(selDay.date)} ${selDay.d} ${fMon.format(selDay.date)} ${selDay.y}, ${h12(h, m)} IST`;
+      const local = sameTZ ? '' : ` (${fLocal.format(new Date(at))} your time)`;
+      slotInput.value = label + local;
+      slotStartInput.value = iso(at);
+      summary.innerHTML = `Requested slot: <strong>${label}</strong>${local} · ${CFG.minutes} min. Vikas will confirm by email.`;
+    };
+
+    // Radio groups with arrow-key navigation (roving tabindex)
+    const radioKeys = (group, onPick) => group.addEventListener('keydown', (e) => {
+      const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+      if (!(e.key in keys) && e.key !== 'Home' && e.key !== 'End') return;
+      const items = $$('[role="radio"]:not(:disabled)', group);
+      if (!items.length) return;
+      e.preventDefault();
+      const i = items.indexOf(document.activeElement);
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + keys[e.key] + items.length) % items.length;
+      items[next].focus();
+      onPick(items[next]);
+    });
+    const setRoving = (group) => {
+      const items = $$('[role="radio"]', group);
+      const sel = items.find(x => x.getAttribute('aria-checked') === 'true' && !x.disabled) || items.find(x => !x.disabled);
+      items.forEach(x => { x.tabIndex = x === sel ? 0 : -1; });
+    };
+
     const renderTimes = () => {
       timesEl.innerHTML = '';
       if (!selDay) { timesEl.innerHTML = '<p class="call__empty">Choose a day first.</p>'; return; }
       SLOTS.forEach(([h, m]) => {
         const at = instant(selDay, h, m);
+        const taken = busy.has(iso(at));
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'call__time'; b.setAttribute('role', 'radio');
-        b.disabled = at <= Date.now() + LEAD_MS;
+        b.type = 'button'; b.className = 'call__time' + (taken ? ' is-booked' : ''); b.setAttribute('role', 'radio');
+        b.disabled = !isFree(selDay, h, m);
+        b.dataset.h = h; b.dataset.m = m;
         b.setAttribute('aria-checked', String(!!selTime && selTime[0] === h && selTime[1] === m));
-        b.innerHTML = `<strong>${h12(h, m)} IST</strong><small>${sameTZ ? '30 min' : fLocal.format(new Date(at)) + ' your time'}</small>`;
-        b.addEventListener('click', () => { selTime = [h, m]; renderTimes(); updateSummary(); });
+        const note = taken ? 'Booked' : (at <= Date.now() + LEAD_MS ? 'Too soon' : (sameTZ ? `${CFG.minutes} min` : fLocal.format(new Date(at)) + ' your time'));
+        b.innerHTML = `<strong>${h12(h, m)} IST</strong><small>${note}</small>`;
+        b.setAttribute('aria-label', `${h12(h, m)} IST, ${note}`);
         timesEl.appendChild(b);
       });
+      setRoving(timesEl);
     };
-    days.forEach((day, i) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'call__day'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', 'false');
-      b.innerHTML = `<small>${i === 0 && day.d === nowIst.getUTCDate() ? 'Today' : fDay.format(day.date)}</small><strong>${day.d}</strong><em>${fMon.format(day.date)}</em>`;
-      b.addEventListener('click', () => {
-        selDay = day; selTime = null;
-        $$('.call__day', daysEl).forEach(x => x.setAttribute('aria-checked', String(x === b)));
-        renderTimes(); updateSummary();
+    const pickTime = (b) => { selTime = [Number(b.dataset.h), Number(b.dataset.m)]; renderTimes(); updateSummary(); $('[aria-checked="true"]', timesEl)?.focus(); };
+    timesEl.addEventListener('click', (e) => { const b = e.target.closest('.call__time'); if (b && !b.disabled) pickTime(b); });
+    radioKeys(timesEl, pickTime);
+
+    const renderDays = () => {
+      daysEl.innerHTML = '';
+      days.forEach((day, i) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'call__day'; b.setAttribute('role', 'radio');
+        b.dataset.i = i;
+        const isSel = !!selDay && selDay.y === day.y && selDay.mo === day.mo && selDay.d === day.d;
+        b.setAttribute('aria-checked', String(isSel));
+        const free = SLOTS.filter(([h, m]) => isFree(day, h, m)).length;
+        b.innerHTML = `<small>${day.today ? 'Today' : fDay.format(day.date)}</small><strong>${day.d}</strong><em>${fMon.format(day.date)}</em><i>${free} free</i>`;
+        b.setAttribute('aria-label', `${fDay.format(day.date)} ${day.d} ${fMon.format(day.date)}, ${free} slots free`);
+        daysEl.appendChild(b);
       });
-      daysEl.appendChild(b);
-    });
-    renderTimes();
+      if (!days.length) daysEl.innerHTML = '<p class="call__empty">No free slots in the next two weeks. Please use Mail instead.</p>';
+      setRoving(daysEl);
+    };
+    const pickDay = (b) => {
+      selDay = days[Number(b.dataset.i)]; selTime = null;
+      renderDays(); renderTimes(); updateSummary();
+      $('[aria-checked="true"]', daysEl)?.focus();
+    };
+    daysEl.addEventListener('click', (e) => { const b = e.target.closest('.call__day'); if (b) pickDay(b); });
+    radioKeys(daysEl, pickDay);
+
+    const refresh = () => {
+      buildDays();
+      if (selDay && !days.some(d => d.y === selDay.y && d.mo === selDay.mo && d.d === selDay.d)) selDay = null;
+      if (selDay && selTime && !isFree(selDay, selTime[0], selTime[1])) selTime = null;
+      renderDays(); renderTimes(); updateSummary();
+    };
+    const loadBusy = async () => {
+      try {
+        const res = await fetch('slots.php', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        const json = await res.json();
+        if (json && Array.isArray(json.busy)) busy = new Set(json.busy);
+      } catch (e) { /* offline or not configured: show all slots */ }
+      refresh();
+    };
+    refresh();
+    loadBusy();
+    // Re-check booked slots whenever the app is opened again
+    const callWin = callForm.closest('.win');
+    if (callWin) new MutationObserver(() => { if (!callWin.hidden) loadBusy(); }).observe(callWin, { attributes: true, attributeFilter: ['hidden'] });
 
     // Instant booking tab (only when a Calendly / Google appointment link is configured)
     const modeBtns = $$('[data-callmode]');
@@ -689,31 +766,37 @@
       const nameEl = $('input[name="name"]', callForm), mailEl = $('input[name="email"]', callForm);
       $$('.cfield', callForm).forEach(f => f.classList.remove('is-invalid'));
       let err = '';
-      if (!slotInput.value) err = 'Please choose a day and a time.';
+      if (!slotStartInput.value) { err = 'Please choose a day and a time.'; (daysEl.querySelector('[tabindex="0"]') || daysEl).focus(); }
       else if (!nameEl.value.trim()) { err = 'Please enter your name.'; nameEl.closest('.cfield').classList.add('is-invalid'); nameEl.focus(); }
       else if (!emailRe.test(mailEl.value.trim())) { err = 'Please enter a valid email.'; mailEl.closest('.cfield').classList.add('is-invalid'); mailEl.focus(); }
       if (err) { status.textContent = err; status.classList.add('is-error'); return; }
 
       status.textContent = ''; status.classList.remove('is-error');
-      submitBtn.classList.add('is-loading'); submitText.textContent = 'Sending…';
+      submitBtn.classList.add('is-loading'); submitBtn.disabled = true; submitText.textContent = 'Checking the slot…';
       try {
         const res = await fetch(callForm.action, { method: 'POST', body: new FormData(callForm), headers: { Accept: 'application/json' } });
         const json = await res.json().catch(() => ({}));
+        if (res.status === 409) {               // someone just took this slot
+          busy.add(slotStartInput.value);
+          selTime = null; refresh();
+          throw new Error(json.error || 'That time was just booked. Please choose another slot.');
+        }
         if (!res.ok || !json.ok) throw new Error(json.error || 'Something went wrong.');
+        busy.add(slotStartInput.value);
         $('[data-call-done-text]', callForm).textContent = `${slotInput.value}. A confirmation is on its way to ${mailEl.value.trim()}, and Vikas will confirm the slot within one working day.`;
         success.hidden = false;
+        $('[data-call-reset]', callForm).focus();
       } catch (ex) {
-        status.textContent = `${ex.message} You can also email vikasr.giri@outlook.com.`;
+        status.textContent = ex.message + (ex.message.includes('booked') ? '' : ' You can also email vikasr.giri@outlook.com.');
         status.classList.add('is-error');
       } finally {
-        submitBtn.classList.remove('is-loading'); submitText.textContent = 'Request this call';
+        submitBtn.classList.remove('is-loading'); submitBtn.disabled = false; submitText.textContent = 'Request this call';
       }
     });
     $('[data-call-reset]', callForm).addEventListener('click', () => {
-      success.hidden = true; callForm.reset(); slotInput.value = '';
+      success.hidden = true; callForm.reset();
       selDay = null; selTime = null;
-      $$('.call__day', daysEl).forEach(x => x.setAttribute('aria-checked', 'false'));
-      renderTimes(); updateSummary();
+      refresh();
     });
   }
 
