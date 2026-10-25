@@ -115,17 +115,19 @@ $termData = [
   <link rel="canonical" href="<?= e($baseUrl) ?>">
   <meta name="theme-color" content="#DCE6EA">
 
-  <meta property="og:type" content="profile">
+  <meta property="og:type" content="website">
   <meta property="og:site_name" content="<?= e($p['name']) ?>">
   <meta property="og:title" content="Vikas OS: the portfolio of <?= e($p['name']) ?>">
   <meta property="og:description" content="A portfolio you can boot. 3+ years in B2B &amp; export marketing: SEO, Google &amp; Meta Ads, IndiaMART, Alibaba.com. +200% organic traffic.">
   <meta property="og:url" content="<?= e($baseUrl) ?>">
-  <meta property="og:image" content="<?= e($baseUrl) ?>assets/img/og-image.png">
+  <meta property="og:image" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
+  <meta property="og:image:secure_url" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
+  <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="<?= e($baseUrl) ?>assets/img/og-image.png">
-
+  <meta name="twitter:title" content="Vikas OS: the portfolio of <?= e($p['name']) ?>">
+  <meta name="twitter:image" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
   <meta property="og:image:alt" content="Vikas OS: About Me window with +200% organic traffic, 3+ years in B2B &amp; export marketing">
 
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
@@ -168,7 +170,7 @@ $termData = [
               'name' => $p['name'],
               'jobTitle' => $p['title'],
               'url' => $baseUrl,
-              'image' => $baseUrl . ($photo ?: 'assets/img/og-image.png'),
+              'image' => $baseUrl . ($photo ?: 'assets/img/og-image.jpg'),
               'email' => 'mailto:' . $p['email'],
               'telephone' => '+' . $p['phone_raw'],
               'address' => ['@type' => 'PostalAddress', 'addressLocality' => 'Umbergaon, Valsad', 'addressRegion' => 'Gujarat', 'postalCode' => '396165', 'addressCountry' => 'IN'],
