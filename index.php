@@ -21,6 +21,22 @@ $resumeDate = $hasResume ? date('M Y', filemtime($resumePath)) : '';
 $photo      = is_file(__DIR__ . '/assets/img/photo.jpg') ? 'assets/img/photo.jpg' : '';
 $waText     = rawurlencode("Hi Vikas, I came across your portfolio and would like to discuss an opportunity.");
 
+/* Diwali surprise: on from two weeks before Diwali until a few days after Bhai Dooj (IST). ?diwali=1 previews it early. */
+$diwali = null;
+$today  = new DateTimeImmutable('today');
+foreach (['2026-11-08', '2027-10-29', '2028-10-17', '2029-11-05', '2030-10-26'] as $d) {
+    $days = (int)$today->diff(new DateTimeImmutable($d))->format('%r%a');
+    if ($days >= -5 && ($days <= 14 || isset($_GET['diwali']))) {
+        $diwali = [
+            'year' => (int)substr($d, 0, 4),
+            'when' => $days > 1 ? 'Diwali is in ' . $days . ' days · ' . date('j M', strtotime($d))
+                    : ($days === 1 ? 'Diwali is tomorrow!' : ($days === 0 ? 'Today is Diwali!' : 'Festive season · ' . date('Y', strtotime($d)))),
+        ];
+        break;
+    }
+}
+$waDiwali = rawurlencode("Happy Diwali, Vikas! Loved the surprise in Vikas OS.");
+
 $groups = [];
 foreach ($p['skills'] as $s) { $groups[$s[1]][] = $s; }
 $groupNames = ['SEO' => 'Search (SEO)', 'Paid' => 'Paid media', 'B2B' => 'B2B & export', 'Analytics' => 'Analytics', 'Web' => 'Web & code', 'Content' => 'Content'];
@@ -47,6 +63,7 @@ $icons = [
     'term'    => '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="m7.5 10 2.5 2-2.5 2M12.5 14.5h4"/>',
     'mail'    => '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4.5 7 7.5 6 7.5-6"/>',
     'call'    => '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="m9.3 14.6 2 2 3.6-3.6"/>',
+    'gift'    => '<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11M12 9c-1.5-3.5-6-4.5-6-2s4.5 2 6 2zM12 9c1.5-3.5 6-4.5 6-2s-4.5 2-6 2z"/>',
 ];
 function icon(string $k, array $icons): string {
     return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $icons[$k] . '</svg>';
@@ -96,6 +113,7 @@ $termData = [
     'skills' => array_map(fn($g) => array_map(fn($s) => $s[0], $g), $groups),
     'results' => array_map(fn($c) => [$c['metric'][0], $c['title']], $p['cases']),
     'resume' => $hasResume ? $p['resume'] : '',
+    'diwali' => $diwali,
     'call' => [
         'slots'   => $p['call_slots'] ?? [],
         'days'    => (int)($p['call_days'] ?? 10),
@@ -104,7 +122,7 @@ $termData = [
     ],
 ];
 ?><!DOCTYPE html>
-<html lang="en">
+<html lang="en"<?= $diwali ? ' data-festive="diwali"' : '' ?>>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -137,7 +155,7 @@ $termData = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=91">
+  <link rel="stylesheet" href="assets/css/style.css?v=92">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -150,7 +168,7 @@ $termData = [
   <noscript>
     <style>
       /* Without JavaScript: skip the boot screen and show every window as a readable page */
-      .boot, .icons, .widgets, .dock, .win__lights, .win__back { display: none !important; }
+      .boot, .icons, .widgets, .dock, .win__lights, .win__back, .toran, .mb-diya, #win-diwali { display: none !important; }
       body { overflow: auto; }
       .desktop { position: relative; overflow: visible; display: flex; flex-direction: column; min-height: 100%; padding: calc(var(--mb-total) + 24px) 16px 60px; }
       .wallpaper { position: fixed; }
@@ -191,6 +209,7 @@ $termData = [
 <div class="boot" data-boot aria-hidden="true">
   <div class="boot__logo"><span></span></div>
   <p class="boot__name">Vikas OS</p>
+  <?php if ($diwali): ?><p class="boot__fest">✦ Diwali edition ✦</p><?php endif; ?>
   <div class="boot__bar"><i data-boot-bar></i></div>
 </div>
 
@@ -239,6 +258,11 @@ $termData = [
     </div>
   </div>
   <div class="menubar__right">
+    <?php if ($diwali): ?>
+    <button type="button" class="mb-icon mb-diya" data-action="diwali" aria-label="Happy Diwali">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path class="mb-diya__flame" d="M12 3c2.2 3 2.6 5.4 0 8-2.6-2.6-2.2-5 0-8z" fill="#FFB938"/><path d="M3 13h18c-.8 4.6-4.4 7.5-9 7.5S3.8 17.6 3 13z" fill="#D9792B"/><path d="M3 13h18" stroke="#FFD27A" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+    <?php endif; ?>
     <span class="status-pill"><i class="dot"></i>Open to work</span>
     <button type="button" class="quick-btn" data-action="quick"><span data-quick-label>Quick view</span></button>
     <button type="button" class="mb-icon" data-action="theme" aria-label="Toggle dark mode">
@@ -271,6 +295,7 @@ $termData = [
       <li role="option" data-spot-copy="<?= e($p['email']) ?>" data-spot-text="copy email contact mail"><span class="spot-ico appicon--mail"><?= icon('mail', $icons) ?></span><span>Copy email address</span><small><?= e($p['email']) ?></small></li>
       <li role="option" data-spot-action="quick" data-spot-text="quick view one page"><span class="spot-ico appicon--about"><?= icon('results', $icons) ?></span><span>Quick view</span><small>Action</small></li>
       <li role="option" data-spot-action="theme" data-spot-text="dark mode theme light night"><span class="spot-ico appicon--term"><?= icon('term', $icons) ?></span><span>Toggle dark mode</span><small>Action</small></li>
+      <?php if ($diwali): ?><li role="option" data-spot-action="diwali" data-spot-text="diwali deepavali gift fireworks festival diya"><span class="spot-ico appicon--gift"><?= icon('gift', $icons) ?></span><span>Happy Diwali</span><small>Surprise</small></li><?php endif; ?>
     </ul>
   </div>
 </div>
@@ -308,6 +333,13 @@ $termData = [
       <rect y="420" width="1600" height="320" fill="url(#wp-haze)"/>
       <path style="fill:var(--h3)" d="M0 760 C 260 700 490 762 730 720 C 970 678 1190 760 1410 720 C 1510 703 1565 711 1600 707 V1000 H0Z"/>
       <path style="fill:var(--h4)" d="M0 872 C 300 820 560 884 830 852 C 1090 820 1330 884 1600 842 V1000 H0Z"/>
+      <?php if ($diwali): ?>
+      <g class="wp-diyas">
+        <?php foreach ([[80, 861], [200, 852], [320, 851], [440, 855], [1160, 848], [1280, 854], [1400, 857], [1520, 852]] as $i => [$x, $y]): ?>
+        <g transform="translate(<?= $x - 24 ?> <?= $y - 26 ?>) scale(1.2)" style="--d:<?= ($i % 3) * .35 ?>s"><circle class="wp-glow" cx="20" cy="12" r="22" fill="url(#g-dw-glow)"/><use href="#dw-bowl"/><g class="wp-flame"><use href="#dw-flame"/></g></g>
+        <?php endforeach; ?>
+      </g>
+      <?php endif; ?>
     </svg>
   </div>
 
@@ -316,10 +348,21 @@ $termData = [
     <defs>
       <linearGradient id="g-folder" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8CC8FF"/><stop offset="1" stop-color="#4C9BF0"/></linearGradient>
       <linearGradient id="g-folder-back" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6AB0F5"/><stop offset="1" stop-color="#3F86DA"/></linearGradient>
+      <?php if ($diwali): ?>
+      <linearGradient id="g-dw-clay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E8873A"/><stop offset="1" stop-color="#9C4317"/></linearGradient>
+      <radialGradient id="g-dw-glow"><stop offset="0" stop-color="#FFC861" stop-opacity=".75"/><stop offset="1" stop-color="#FFB040" stop-opacity="0"/></radialGradient>
+      <linearGradient id="g-gift" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF5E86"/><stop offset="1" stop-color="#C2185B"/></linearGradient>
+      <linearGradient id="g-gift-lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8AA6"/><stop offset="1" stop-color="#E0306A"/></linearGradient>
+      <linearGradient id="g-ribbon" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE9A3"/><stop offset="1" stop-color="#F2AE12"/></linearGradient>
+      <symbol id="dw-bowl" viewBox="0 0 40 36" width="40" height="36"><path d="M19.4 14.5h1.2v5h-1.2z" fill="#3A2A1A"/><path d="M2 19h36c-1.4 8.6-8.6 14-18 14S3.4 27.6 2 19z" fill="url(#g-dw-clay)"/><path d="M2.5 19h35" stroke="#FFD27A" stroke-width="1.8" stroke-linecap="round"/><g fill="#FFE2A0"><circle cx="11" cy="25" r="1.2"/><circle cx="20" cy="27" r="1.2"/><circle cx="29" cy="25" r="1.2"/></g></symbol>
+      <symbol id="dw-flame" viewBox="0 0 40 36" width="40" height="36"><path d="M20 1.5c3.8 5.2 4.6 9.6 0 14.5-4.6-4.9-3.8-9.3 0-14.5z" fill="#FFB938"/><path d="M20 7c1.9 2.7 2.3 5 0 7.6-2.3-2.6-1.9-4.9 0-7.6z" fill="#FFF3C4"/></symbol>
+      <?php endif; ?>
     </defs>
   </svg>
 
   <!-- Desktop icons (single click opens) -->
+  <?php if ($diwali): ?><div class="toran" data-toran aria-hidden="true"></div><?php endif; ?>
+
   <nav class="icons" aria-label="Desktop">
     <?php foreach ($apps as $id => $a): ?>
       <button type="button" class="dicon" data-open="<?= e($id) ?>" aria-label="Open <?= e($a[7]) ?>">
@@ -327,6 +370,15 @@ $termData = [
         <span class="dicon__label"><?= e($a[7]) ?></span>
       </button>
     <?php endforeach; ?>
+    <?php if ($diwali): ?>
+      <button type="button" class="dicon dicon--gift" data-action="diwali" data-gift aria-label="Open your Diwali gift">
+        <span class="gico"><svg viewBox="0 0 56 56" aria-hidden="true">
+          <rect x="9" y="25" width="38" height="26" rx="4" fill="url(#g-gift)"/><rect x="24.5" y="25" width="7" height="26" fill="url(#g-ribbon)"/>
+          <g class="gico__lid"><rect x="6" y="17" width="44" height="10" rx="3" fill="url(#g-gift-lid)"/><rect x="24.5" y="17" width="7" height="10" fill="url(#g-ribbon)"/><path d="M28 17c-3-7.5-12.5-10-13.5-5S23 17 28 17zM28 17c3-7.5 12.5-10 13.5-5S33 17 28 17z" fill="url(#g-ribbon)"/></g>
+        </svg><span class="gico__badge">1</span></span>
+        <span class="dicon__label">Diwali Gift</span>
+      </button>
+    <?php endif; ?>
   </nav>
   <div class="band" data-band hidden></div>
 
@@ -698,6 +750,50 @@ $termData = [
         <p class="mail__alt muted small">Prefer direct? <button type="button" data-copy="<?= e($p['email']) ?>"><?= e($p['email']) ?></button> · <a href="tel:+<?= e($p['phone_raw']) ?>"><?= e($p['phone']) ?></a> · <a href="https://wa.me/<?= e($p['phone_raw']) ?>?text=<?= $waText ?>" target="_blank" rel="noopener">WhatsApp</a></p>
       </div>
     </section>
+
+    <?php if ($diwali): ?>
+    <!-- DIWALI (festive season only) -->
+    <section class="win win--diwali" id="win-diwali" data-app="diwali" data-geo="33,5,540,680" role="dialog" aria-label="Happy Diwali" tabindex="-1" hidden>
+      <header class="win__bar" data-drag>
+        <div class="win__lights"><button type="button" class="tl tl--close" data-close aria-label="Close Happy Diwali"></button><button type="button" class="tl tl--min" data-min aria-label="Minimise"></button><button type="button" class="tl tl--max" data-max aria-label="Maximise"></button></div>
+        <p class="win__title"><span class="win__ico appicon--gift"><?= icon('gift', $icons) ?></span>Happy Diwali</p>
+        <button type="button" class="win__back" data-close>‹ Home</button>
+      </header>
+      <div class="win__body dw">
+        <div class="dw__hero">
+          <span class="dw__stars" aria-hidden="true"><?php foreach ([[8, 18], [18, 62], [30, 12], [70, 16], [84, 58], [92, 22], [12, 84], [88, 86]] as $i => [$sx, $sy]): ?><i style="left:<?= $sx ?>%;top:<?= $sy ?>%;--d:<?= $i * .3 ?>s"></i><?php endforeach; ?></span>
+          <svg class="dw__rangoli" viewBox="-100 -100 200 200" aria-hidden="true">
+            <?php for ($i = 0; $i < 8; $i++): ?>
+            <g transform="rotate(<?= $i * 45 ?>)"><path d="M0-22C15-40 15-64 0-82-15-64-15-40 0-22z" fill="#F15BB5"/><path d="M0-32C8-44 8-58 0-70-8-58-8-44 0-32z" fill="#FFD166"/><circle cy="-91" r="5" fill="#7CF0B5"/></g>
+            <g transform="rotate(<?= $i * 45 + 22.5 ?>)"><path d="M0-20C10-31 10-44 0-55-10-44-10-31 0-20z" fill="#FF9F1C"/><circle cy="-64" r="3.5" fill="#6EC3FF"/></g>
+            <?php endfor; ?>
+            <circle r="21" fill="#FFD166"/><circle r="13" fill="#F15BB5"/><circle r="5.5" fill="#FFF6E5"/>
+          </svg>
+          <p class="dw__hi" lang="hi">शुभ दीपावली</p>
+          <h2 class="dw__title">Happy Diwali!</h2>
+          <p class="dw__when"><?= e($diwali['when']) ?></p>
+        </div>
+        <div class="dw__content">
+          <p class="dw__msg">Thank you for visiting Vikas OS. May this festival of lights bring your family joy, your business great growth, and your team the right people. Wishing you a bright, prosperous year ahead.</p>
+          <div class="dw__lamps">
+            <p class="dw__step">Light all five diyas for a little surprise</p>
+            <div class="dw__row">
+              <?php for ($i = 1; $i <= 5; $i++): ?>
+              <button type="button" class="diya" data-diya aria-pressed="false" aria-label="Light diya <?= $i ?>"><svg viewBox="0 0 40 36" aria-hidden="true"><circle class="diya__glow" cx="20" cy="12" r="20" fill="url(#g-dw-glow)"/><use href="#dw-bowl"/><g class="diya__flame"><use href="#dw-flame"/></g></svg></button>
+              <?php endfor; ?>
+            </div>
+            <p class="dw__count" data-diya-count aria-live="polite">0 of 5 diyas lit</p>
+          </div>
+          <div class="dw__actions">
+            <button type="button" class="btn btn--primary" data-action="fireworks">Light up the sky</button>
+            <a class="btn btn--ghost" href="https://wa.me/<?= e($p['phone_raw']) ?>?text=<?= $waDiwali ?>" target="_blank" rel="noopener">Wish Vikas back</a>
+            <button type="button" class="btn btn--ghost" data-action="sharelight">Share the light</button>
+          </div>
+          <p class="dw__sign">With warm wishes, <strong><?= e($p['name']) ?></strong></p>
+        </div>
+      </div>
+    </section>
+    <?php endif; ?>
   </div>
 
   <!-- Quick view header (only visible in quick view) -->
@@ -732,6 +828,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=90" defer></script>
+<script src="assets/js/main.js?v=91" defer></script>
 </body>
 </html>

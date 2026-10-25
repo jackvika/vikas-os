@@ -14,6 +14,7 @@
   const isQuick = () => root.classList.contains('quick');
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const DATA = window.VIKAS || {};
+  const FEST = DATA.diwali || null; // set by the server during the Diwali season only
 
   /* ---------- Toast + copy ---------- */
   const toastEl = $('[data-toast]');
@@ -391,7 +392,9 @@
       '  whoami        who is this?\n  about         short bio\n  experience    work history\n  skills        skills by category\n' +
       '  results       proof of impact\n  notice        availability\n  contact       email & phone\n  resume        open the resume\n' +
       '  open &lt;app&gt;    about | results | experience | skills | fit | resume | mail\n  ls            list files\n  theme         toggle dark mode\n' +
-      '  date          current date\n  clear         clear the screen\n  <b>sudo hire vikas</b>   ;)'),
+      '  date          current date\n  clear         clear the screen\n' +
+      (FEST ? '  <b>diwali</b>        a festive surprise\n  fireworks     light up the sky\n' : '') +
+      '  <b>sudo hire vikas</b>   ;)'),
     whoami: () => print(`<b>${esc(DATA.name)}</b>\n${esc(DATA.title)}\nStatus: <span class="ok">open to new roles</span> · ${esc(DATA.notice)}`),
     about: () => print('Digital marketer for B2B & export businesses: SEO, Google & Meta Ads,\nIndiaMART & Alibaba.com lead generation, CRM, and the landing pages that convert.\n<span class="ok">+200% organic traffic</span> for an industrial machinery manufacturer.'),
     experience: () => print((DATA.experience || []).map(x => `<span class="dim">${esc(x[0])}</span>  <b>${esc(x[1])}</b> @ ${esc(x[2])}`).join('\n')),
@@ -448,11 +451,168 @@
   $('[data-term]').addEventListener('click', (e) => { if (!e.target.closest('a, button')) termIn.focus(); });
 
   /* ======================================================================
+     DIWALI SURPRISE (the server only renders its markup in the festive season)
+     ====================================================================== */
+  // Fireworks on a canvas behind the windows (above them on phones, where apps are full-screen)
+  const fireworks = (() => {
+    const COLORS = ['#FFD166', '#FF6B6B', '#FF9F1C', '#F15BB5', '#7CF0B5', '#6EC3FF', '#C77DFF'];
+    const parts = [], rockets = [];
+    let cv, cx, W = 0, H = 0, raf = 0, until = 0, nextLaunch = 0;
+    const size = () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = window.innerWidth; H = window.innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    const ensure = () => {
+      if (cv) return;
+      const desk = $('[data-desktop]'), wl = $('[data-windows]');
+      const veil = Object.assign(document.createElement('div'), { className: 'fw-veil' });
+      cv = Object.assign(document.createElement('canvas'), { className: 'fw' });
+      [veil, cv].forEach(el => { el.setAttribute('aria-hidden', 'true'); desk.insertBefore(el, wl); });
+      cx = cv.getContext('2d');
+      size();
+      window.addEventListener('resize', size);
+    };
+    const burst = (x, y, big) => {
+      const c = COLORS[Math.random() * COLORS.length | 0], n = big ? 110 : 70, ring = Math.random() < .3;
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 + Math.random() * .2;
+        const v = ring ? 4 + Math.random() * .4 : 1 + Math.random() * (big ? 5.5 : 4.2);
+        parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: .011 + Math.random() * .012, c: Math.random() < .15 ? '#FFF6D8' : c, r: 1.4 + Math.random() * 1.3 });
+      }
+    };
+    const launch = (tx, ty, big) => {
+      if (tx == null) { tx = W * (.12 + Math.random() * .76); ty = H * (.1 + Math.random() * .35); }
+      const sx = tx + (Math.random() - .5) * 80, sy = H + 10, t = 38 + Math.random() * 14;
+      rockets.push({ x: sx, y: sy, vx: (tx - sx) / t, vy: (ty - sy) / t, t, big });
+    };
+    const frame = (now) => {
+      // Fade the previous frame (trails), then draw additively
+      cx.globalCompositeOperation = 'destination-out';
+      cx.fillStyle = 'rgba(0,0,0,.24)';
+      cx.fillRect(0, 0, W, H);
+      cx.globalCompositeOperation = 'lighter';
+      if (now < until && now > nextLaunch) { launch(); if (Math.random() < .35) launch(); nextLaunch = now + 380 + Math.random() * 420; }
+      cx.fillStyle = '#FFE3A3';
+      for (let i = rockets.length - 1; i >= 0; i--) {
+        const r = rockets[i];
+        r.x += r.vx; r.y += r.vy;
+        cx.globalAlpha = 1;
+        cx.beginPath(); cx.arc(r.x, r.y, 2, 0, 7); cx.fill();
+        if (--r.t <= 0) { burst(r.x, r.y, r.big); rockets.splice(i, 1); }
+      }
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        p.vx *= .985; p.vy = p.vy * .985 + .045;
+        p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+        cx.globalAlpha = p.life; cx.fillStyle = p.c;
+        cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 7); cx.fill();
+      }
+      cx.globalAlpha = 1;
+      if (now >= until) root.classList.remove('is-fw');
+      if (now < until || parts.length || rockets.length) raf = requestAnimationFrame(frame);
+      else { raf = 0; cx.clearRect(0, 0, W, H); }
+    };
+    const show = (ms) => {
+      if (reduceMotion) return;
+      ensure();
+      until = Math.max(until, performance.now() + ms);
+      root.classList.add('is-fw');
+      if (!raf) { nextLaunch = 0; raf = requestAnimationFrame(frame); }
+    };
+    // While the sky is lit, tapping the empty desktop launches a rocket right there
+    document.addEventListener('pointerdown', (e) => {
+      if (!raf || e.target.closest('.win, .dock, .menubar, .dicon, .widget, .spotlight, .ctx, .toast')) return;
+      launch(e.clientX, e.clientY, true);
+      until = Math.max(until, performance.now() + 1500);
+    });
+    return { show };
+  })();
+
+  let festHint = () => {};
+  if (FEST && byApp.diwali) {
+    const gift = $('[data-gift]');
+    const card = byApp.diwali;
+    let opened = false;
+    try { opened = localStorage.getItem('diwali-gift') === String(FEST.year); } catch (e) {}
+    if (opened && gift) gift.classList.add('is-opened');
+
+    // Toran: string lights hanging under the menu bar (one bulb per dip of the wire)
+    const toran = $('[data-toran]');
+    const BULBS = ['#FFC93C', '#FF6B6B', '#7CF0B5', '#6EC3FF', '#FF9DE2'];
+    const hang = () => {
+      const n = Math.ceil(window.innerWidth / 56);
+      if (!toran || toran.childElementCount === n) return;
+      toran.innerHTML = Array.from({ length: n }, (_, i) => `<i style="left:${i * 56 + 24}px;--c:${BULBS[i % BULBS.length]};--d:${(i % 4) * .4}s"></i>`).join('');
+    };
+    hang();
+    window.addEventListener('resize', hang);
+
+    actions.diwali = () => {
+      const first = !opened;
+      opened = true;
+      try { localStorage.setItem('diwali-gift', String(FEST.year)); } catch (e) {}
+      if (gift) {
+        gift.classList.add('is-opened', 'is-popping');
+        setTimeout(() => gift.classList.remove('is-popping'), 900);
+      }
+      fireworks.show(first ? 6500 : 3000);
+      const from = gift && gift.offsetParent ? gift : null;
+      setTimeout(() => open('diwali', { from }), first && !reduceMotion ? 650 : 0);
+    };
+    actions.fireworks = () => {
+      if (reduceMotion) toast('Happy Diwali! Fireworks stay off because your device prefers reduced motion.');
+      fireworks.show(4500);
+    };
+    actions.sharelight = async () => {
+      const url = location.origin + location.pathname;
+      const text = 'Happy Diwali! Open the little Diwali surprise in Vikas OS:';
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Happy Diwali from Vikas OS', text, url }); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      copyText(`${text} ${url}`, 'Link copied. Share the light!');
+    };
+
+    // Light all five diyas → grand finale
+    const diyas = $$('[data-diya]', card);
+    const count = $('[data-diya-count]', card);
+    diyas.forEach(d => d.addEventListener('click', () => {
+      if (d.classList.contains('is-lit')) return;
+      d.classList.add('is-lit');
+      d.setAttribute('aria-pressed', 'true');
+      const lit = diyas.filter(x => x.classList.contains('is-lit')).length;
+      count.textContent = lit < diyas.length ? `${lit} of ${diyas.length} diyas lit` : 'All diyas lit. Shubh Deepavali!';
+      if (lit === diyas.length) {
+        card.classList.add('is-glowing');
+        fireworks.show(7000);
+        toast('All five diyas lit! May the year ahead shine bright for you.');
+      }
+    }));
+
+    commands.diwali = () => { print('<span class="warn">शुभ दीपावली · Happy Diwali!</span>\nLighting up the sky…'); actions.diwali(); };
+    commands['happy diwali'] = commands.diwali;
+    commands.fireworks = () => { print('Boom.', 'dim'); actions.fireworks(); };
+    commands.patakhe = commands.fireworks;
+
+    // Once per session, nudge first-time visitors toward the unopened gift
+    festHint = () => {
+      if (opened) return;
+      let seen = false;
+      try { seen = sessionStorage.getItem('diwali-hint') === '1'; sessionStorage.setItem('diwali-hint', '1'); } catch (e) {}
+      if (!seen) setTimeout(() => { if (!opened) toast('A Diwali gift just landed on your desktop. Open it!'); }, 2600);
+    };
+  }
+
+  /* ======================================================================
      BOOT + INITIAL STATE
      ====================================================================== */
   const bootEl = $('[data-boot]');
   const startDesktop = () => {
     const app = new URLSearchParams(location.search).get('app');
+    festHint();
     if (isQuick()) return;
     if (app && byApp[app]) { open(app, { noFocus: true }); return; }
     if (!isMobile()) open('about', { quiet: true, noFocus: true });
