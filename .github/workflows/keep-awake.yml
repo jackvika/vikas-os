@@ -1,0 +1,17 @@
+# Render's free plan sleeps after 15 idle minutes and takes ~1 minute to wake.
+# WhatsApp / LinkedIn link previews give up long before that and cache the
+# failure, so ping the site regularly to keep it awake.
+name: Keep site awake
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub runs this every 5-15 min in practice
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping vikas-os.onrender.com
+        run: curl -fsS -m 120 -o /dev/null -w "%{http_code} in %{time_total}s\n" https://vikas-os.onrender.com/assets/img/favicon.svg
