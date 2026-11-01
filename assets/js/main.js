@@ -38,7 +38,7 @@
   const metaTheme = $('meta[name="theme-color"]');
   const setTheme = (dark, save) => {
     if (dark) root.setAttribute('data-theme', 'dark'); else root.removeAttribute('data-theme');
-    if (metaTheme) metaTheme.setAttribute('content', dark ? '#12161C' : '#DCE6EA');
+    if (metaTheme) metaTheme.setAttribute('content', dark ? '#12161C' : '#B9CCEE');
     if (save) { try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {} }
   };
   setTheme(root.getAttribute('data-theme') === 'dark', false);
@@ -87,10 +87,20 @@
   const place = (w) => {
     const [x, y, ww, hh] = (w.dataset.geo || '10,10,600,500').split(',').map(Number);
     const vw = window.innerWidth, vh = window.innerHeight;
-    const width = Math.min(ww, vw - 32);
-    const height = Math.min(hh, vh - MB() - 120);
+    // Big screens get proportionally bigger windows (up to +30%)
+    const k = clamp(Math.min(vw / 1440, vh / 860), 1, 1.3);
+    let width = Math.min(Math.round(ww * k), vw - 32);
+    const height = Math.min(Math.round(hh * k), vh - MB() - 120);
     let left = Math.round(vw * x / 100) + cascade * 0;
     let top = Math.round(MB() + (vh - MB()) * y / 100);
+    // Prefer the free area between the widgets (left) and the desktop icons (right),
+    // narrowing the window a little to fit it there when that keeps it usable
+    const wg = $('.widgets'), ic = $('.icons');
+    const freeL = wg && wg.offsetWidth ? wg.getBoundingClientRect().right + 16 : 8;
+    const freeR = ic && ic.offsetWidth ? ic.getBoundingClientRect().left - 8 : vw - 8;
+    if (freeR - freeL < width && freeR - freeL >= Math.max(460, width * .85)) width = freeR - freeL;
+    if (freeR - freeL >= width) left = clamp(left, freeL, freeR - width);
+    else if (vw - 8 - freeL >= width) left = freeL;
     left = clamp(left, 8, Math.max(8, vw - width - 8));
     top = clamp(top, MB() + 8, Math.max(MB() + 8, vh - height - 96));
     Object.assign(w.style, { left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px' });
@@ -230,7 +240,7 @@
       const next = order[(order.indexOf(cur) + 1) % order.length];
       if (next === 'valley') root.removeAttribute('data-wp'); else root.setAttribute('data-wp', next);
       try { localStorage.setItem('wallpaper', next === 'valley' ? '' : next); } catch (e) {}
-      toast(`Wallpaper: ${next[0].toUpperCase() + next.slice(1)}`);
+      toast(`Wallpaper: ${{ valley: 'Ocean', sunset: 'Dusk', forest: 'Grove' }[next]}`);
     },
     trash: () => toast('Trash is empty. No missed deadlines in here.'),
   };

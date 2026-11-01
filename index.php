@@ -113,7 +113,7 @@ $termData = [
   <meta name="author" content="<?= e($p['name']) ?>">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="<?= e($baseUrl) ?>">
-  <meta name="theme-color" content="#DCE6EA">
+  <meta name="theme-color" content="#B9CCEE">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="<?= e($p['name']) ?>">
@@ -137,7 +137,7 @@ $termData = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=91">
+  <link rel="stylesheet" href="assets/css/style.css?v=93">
   <script>
     document.documentElement.classList.add('js');
     try {
@@ -189,8 +189,8 @@ $termData = [
 
 <!-- ================= BOOT ================= -->
 <div class="boot" data-boot aria-hidden="true">
-  <div class="boot__logo"><span></span></div>
-  <p class="boot__name">Vikas OS</p>
+  <div class="boot__logo"><span>V</span></div>
+  <p class="boot__name">Vikas OS <span>26</span></p>
   <div class="boot__bar"><i data-boot-bar></i></div>
 </div>
 
@@ -200,6 +200,7 @@ $termData = [
     <div class="menu">
       <button type="button" class="menu__btn menu__btn--logo" aria-haspopup="true" aria-expanded="false" aria-label="Vikas OS menu"><span class="os-logo" aria-hidden="true"></span></button>
       <div class="menu__list" role="menu" hidden>
+        <p class="menu__head">Vikas OS 26</p>
         <button role="menuitem" data-open="about">About this Vikas</button>
         <button role="menuitem" data-action="quick">Quick view (one page)</button>
         <hr>
@@ -293,21 +294,28 @@ $termData = [
   <div class="wallpaper" aria-hidden="true">
     <svg class="wp-svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
       <defs>
-        <linearGradient id="wp-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset=".55" style="stop-color:var(--sky2)"/><stop offset="1" style="stop-color:var(--sky3)"/></linearGradient>
-        <radialGradient id="wp-glow"><stop offset="0" style="stop-color:var(--sun);stop-opacity:.9"/><stop offset="1" style="stop-color:var(--sun);stop-opacity:0"/></radialGradient>
-        <linearGradient id="wp-haze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" style="stop-color:var(--haze)" stop-opacity=".55"/></linearGradient>
+        <linearGradient id="wp-sky" x1="1" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset=".5" style="stop-color:var(--sky2)"/><stop offset="1" style="stop-color:var(--sky3)"/></linearGradient>
+        <radialGradient id="wp-glow"><stop offset="0" style="stop-color:var(--sun);stop-opacity:.45"/><stop offset="1" style="stop-color:var(--sun);stop-opacity:0"/></radialGradient>
+        <linearGradient id="wp-sheen" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".22"/></linearGradient>
       </defs>
       <rect width="1600" height="1000" fill="url(#wp-sky)"/>
       <g class="wp-starfield" style="fill:#fff">
-        <circle cx="140" cy="90" r="1.3"/><circle cx="320" cy="160" r="1"/><circle cx="520" cy="70" r="1.5"/><circle cx="690" cy="210" r="1"/><circle cx="860" cy="110" r="1.2"/><circle cx="980" cy="60" r="1"/><circle cx="1260" cy="140" r="1.4"/><circle cx="1420" cy="80" r="1"/><circle cx="1520" cy="220" r="1.2"/><circle cx="240" cy="280" r="1"/><circle cx="430" cy="330" r="1.2"/><circle cx="760" cy="300" r="1"/><circle cx="1360" cy="320" r="1"/><circle cx="60" cy="380" r="1.1"/>
+        <circle cx="140" cy="90" r="1.3"/><circle cx="320" cy="160" r="1"/><circle cx="520" cy="70" r="1.5"/><circle cx="690" cy="210" r="1"/><circle cx="860" cy="110" r="1.2"/><circle cx="980" cy="60" r="1"/><circle cx="1260" cy="40" r="1.4"/><circle cx="1420" cy="80" r="1"/><circle cx="240" cy="280" r="1"/><circle cx="430" cy="330" r="1.2"/><circle cx="760" cy="300" r="1"/><circle cx="60" cy="380" r="1.1"/>
       </g>
-      <circle cx="1130" cy="330" r="300" fill="url(#wp-glow)"/>
-      <circle cx="1130" cy="330" r="64" style="fill:var(--sun-core)"/>
-      <path style="fill:var(--h1)" d="M0 560 C 180 470 360 520 560 465 C 760 410 930 505 1110 455 C 1300 402 1450 470 1600 430 V1000 H0Z"/>
-      <path style="fill:var(--h2)" d="M0 650 C 230 585 430 640 650 598 C 870 556 1050 640 1270 598 C 1430 568 1520 602 1600 590 V1000 H0Z"/>
-      <rect y="420" width="1600" height="320" fill="url(#wp-haze)"/>
-      <path style="fill:var(--h3)" d="M0 760 C 260 700 490 762 730 720 C 970 678 1190 760 1410 720 C 1510 703 1565 711 1600 707 V1000 H0Z"/>
-      <path style="fill:var(--h4)" d="M0 872 C 300 820 560 884 830 852 C 1090 820 1330 884 1600 842 V1000 H0Z"/>
+      <circle cx="420" cy="140" r="520" fill="url(#wp-glow)"/>
+      <!-- Flowing ribbons, each with a soft sheen and a light edge -->
+      <path style="fill:var(--h1)" d="M0 640 C 300 520 560 600 860 470 C 1120 360 1360 300 1600 180 V1000 H0Z"/>
+      <path fill="url(#wp-sheen)" d="M0 640 C 300 520 560 600 860 470 C 1120 360 1360 300 1600 180 V1000 H0Z"/>
+      <path style="fill:var(--h2)" d="M0 760 C 320 640 620 720 920 590 C 1180 480 1400 440 1600 360 V1000 H0Z"/>
+      <path fill="url(#wp-sheen)" d="M0 760 C 320 640 620 720 920 590 C 1180 480 1400 440 1600 360 V1000 H0Z"/>
+      <path style="fill:var(--h3)" d="M0 860 C 360 780 680 840 980 730 C 1240 640 1440 610 1600 560 V1000 H0Z"/>
+      <path fill="url(#wp-sheen)" d="M0 860 C 360 780 680 840 980 730 C 1240 640 1440 610 1600 560 V1000 H0Z"/>
+      <path style="fill:var(--h4)" d="M0 950 C 400 900 760 940 1060 860 C 1300 800 1480 790 1600 770 V1000 H0Z"/>
+      <g fill="none" stroke="#fff" stroke-width="1.5" class="wp-edges">
+        <path d="M0 640 C 300 520 560 600 860 470 C 1120 360 1360 300 1600 180"/>
+        <path d="M0 760 C 320 640 620 720 920 590 C 1180 480 1400 440 1600 360"/>
+        <path d="M0 860 C 360 780 680 840 980 730 C 1240 640 1440 610 1600 560"/>
+      </g>
     </svg>
   </div>
 
@@ -333,7 +341,7 @@ $termData = [
   <!-- Widgets -->
   <aside class="widgets" aria-label="Widgets">
     <div class="widget widget--note">
-      <p class="note__title">Recruiter? Start here</p>
+      <p class="widget__label">Recruiter? Start here</p>
       <ol>
         <li><button type="button" data-open="about">Read “About Me”</button></li>
         <li><button type="button" data-open="fit">Paste your JD in “Fit Check”</button></li>
@@ -732,6 +740,6 @@ $termData = [
 <div class="toast" role="status" aria-live="polite" data-toast></div>
 
 <script>window.VIKAS = <?= json_encode($termData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="assets/js/main.js?v=90" defer></script>
+<script src="assets/js/main.js?v=92" defer></script>
 </body>
 </html>
