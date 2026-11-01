@@ -15,6 +15,8 @@
  *  4. Deploy → New deployment → type "Web app"
  *       Execute as: Me      Who has access: Anyone
  *     Copy the Web app URL (…/exec) → Render env GMAIL_RELAY_URL.
+ *  5. Run the function "setupKeepAwake" once so the website never falls asleep
+ *     (see the bottom of this file).
  *
  * UPDATING this code later (e.g. after pasting a new version):
  *   Run "authorize" again if new permissions are needed, then
@@ -152,4 +154,33 @@ function safeCell_(v) {
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ---------------------------------------------------------------------------
+ * Keep the website awake (fast WhatsApp / LinkedIn link previews)
+ *
+ * Render's free plan sleeps after 15 idle minutes and then needs ~30-60 s to
+ * wake up, so link previews time out. Google runs this ping every 5 minutes
+ * (far more reliably than GitHub's scheduled workflows).
+ *
+ * SETUP: run "setupKeepAwake" once (▶ Run) and allow the permission.
+ * To stop it: run "stopKeepAwake".
+ * ------------------------------------------------------------------------- */
+var SITE_URL = 'https://vikas-os.onrender.com/assets/img/favicon.svg';
+
+function keepAwake() {
+  UrlFetchApp.fetch(SITE_URL, { muteHttpExceptions: true, followRedirects: true });
+}
+
+function setupKeepAwake() {
+  stopKeepAwake();
+  ScriptApp.newTrigger('keepAwake').timeBased().everyMinutes(5).create();
+  keepAwake();
+  Logger.log('Keep-awake is on: pinging ' + SITE_URL + ' every 5 minutes.');
+}
+
+function stopKeepAwake() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'keepAwake') ScriptApp.deleteTrigger(t);
+  });
 }

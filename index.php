@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-session_start();
 
 $p = require __DIR__ . '/includes/content.php';
 
@@ -10,6 +9,39 @@ $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SER
 $host    = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $path    = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
 $baseUrl = $scheme . '://' . $host . $path . '/';
+
+/* Link-preview tags (WhatsApp, LinkedIn, Facebook, X…). Bump ?v= when og-image.jpg changes. */
+$ogTitle = 'Vikas OS: the portfolio of ' . $p['name'];
+$ogDesc  = 'A portfolio you can boot. 3+ years in B2B & export marketing: SEO, Google & Meta Ads, IndiaMART, Alibaba.com. +200% organic traffic.';
+$ogImage = $baseUrl . 'assets/img/og-image.jpg?v=3';
+$ogTags  = '<meta property="og:type" content="website">'
+    . '<meta property="og:site_name" content="' . e($p['name']) . '">'
+    . '<meta property="og:title" content="' . e($ogTitle) . '">'
+    . '<meta property="og:description" content="' . e($ogDesc) . '">'
+    . '<meta property="og:url" content="' . e($baseUrl) . '">'
+    . '<meta property="og:image" content="' . e($ogImage) . '">'
+    . '<meta property="og:image:secure_url" content="' . e($ogImage) . '">'
+    . '<meta property="og:image:type" content="image/jpeg">'
+    . '<meta property="og:image:width" content="1200">'
+    . '<meta property="og:image:height" content="630">'
+    . '<meta property="og:image:alt" content="Vikas OS: About Me window with +200% organic traffic, 3+ years in B2B &amp; export marketing">'
+    . '<meta name="twitter:card" content="summary_large_image">'
+    . '<meta name="twitter:title" content="' . e($ogTitle) . '">'
+    . '<meta name="twitter:image" content="' . e($ogImage) . '">';
+
+// Link-preview bots only read the <head>: answer them with a ~1.5 KB page so the
+// preview appears quickly even on slow mobile data (search engines get the full page).
+if (preg_match('/WhatsApp|facebookexternalhit|Facebot|LinkedInBot|Twitterbot|TelegramBot|Slackbot|Discordbot|SkypeUriPreview|Pinterest|redditbot/i', $_SERVER['HTTP_USER_AGENT'] ?? '')) {
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Cache-Control: public, max-age=3600');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+        . '<title>' . e($p['name'] . ' — ' . $p['title'] . ' | Vikas OS') . '</title>'
+        . '<meta name="description" content="' . e($ogDesc) . '">' . $ogTags
+        . '</head><body><a href="' . e($baseUrl) . '">' . e($ogTitle) . '</a></body></html>';
+    exit;
+}
+
+session_start();
 
 if (empty($_SESSION['csrf'])) { $_SESSION['csrf'] = bin2hex(random_bytes(16)); }
 $_SESSION['form_time'] = time();
@@ -115,20 +147,7 @@ $termData = [
   <link rel="canonical" href="<?= e($baseUrl) ?>">
   <meta name="theme-color" content="#B9CCEE">
 
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="<?= e($p['name']) ?>">
-  <meta property="og:title" content="Vikas OS: the portfolio of <?= e($p['name']) ?>">
-  <meta property="og:description" content="A portfolio you can boot. 3+ years in B2B &amp; export marketing: SEO, Google &amp; Meta Ads, IndiaMART, Alibaba.com. +200% organic traffic.">
-  <meta property="og:url" content="<?= e($baseUrl) ?>">
-  <meta property="og:image" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
-  <meta property="og:image:secure_url" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
-  <meta property="og:image:type" content="image/jpeg">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Vikas OS: the portfolio of <?= e($p['name']) ?>">
-  <meta name="twitter:image" content="<?= e($baseUrl) ?>assets/img/og-image.jpg?v=2">
-  <meta property="og:image:alt" content="Vikas OS: About Me window with +200% organic traffic, 3+ years in B2B &amp; export marketing">
+  <?= $ogTags ?>
 
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
@@ -170,7 +189,7 @@ $termData = [
               'name' => $p['name'],
               'jobTitle' => $p['title'],
               'url' => $baseUrl,
-              'image' => $baseUrl . ($photo ?: 'assets/img/og-image.jpg'),
+              'image' => $baseUrl . ($photo ?: 'assets/img/og-image.jpg?v=3'),
               'email' => 'mailto:' . $p['email'],
               'telephone' => '+' . $p['phone_raw'],
               'address' => ['@type' => 'PostalAddress', 'addressLocality' => 'Umbergaon, Valsad', 'addressRegion' => 'Gujarat', 'postalCode' => '396165', 'addressCountry' => 'IN'],
